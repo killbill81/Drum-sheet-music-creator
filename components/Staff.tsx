@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor } from '../types';
+import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion } from '../types';
 import {
   STAFF_HEIGHT, STAFF_LINE_GAP, MEASURE_WIDTH,
   NUM_MEASURES, STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
@@ -7,18 +7,22 @@ import {
   MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
 } from '../constants';
 import { Note } from './Note';
-import { PercussionClef } from './Icons';
+import { PercussionClef, PlaybackArrowIcon } from './Icons';
 import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 
 interface StaffProps {
   notes: NoteType[];
   onAddNote: (measure: number, beat: number, part: DrumPart) => void;
   onRemoveNote: (noteId: string) => void;
+  onMeasureClick: (measureIndex: number) => void;
+  selectedTool: Tool;
   selectedDrumPart: DrumPart;
   selectedDuration: NoteDuration;
   isPlaying: boolean;
   playbackCursor: PlaybackCursor;
   timeSignature: TimeSignature;
+  loopRegion: LoopRegion;
+  loopStartMeasure: number | null;
 }
 
 const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
@@ -51,8 +55,12 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
   return groups;
 }
 
-export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, selectedDrumPart, selectedDuration, isPlaying, playbackCursor, timeSignature }) => {
+export const Staff: React.FC<StaffProps> = ({
+  notes, onAddNote, onRemoveNote, onMeasureClick, selectedTool, selectedDrumPart, selectedDuration,
+  isPlaying, playbackCursor, timeSignature, loopRegion, loopStartMeasure
+}) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
+  const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
   
   const beatsPerMeasure = timeSignature.top;
   const beatWidth = (MEASURE_WIDTH - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
@@ -67,7 +75,7 @@ export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, se
     return [...groupNotesForBeaming(voice1Notes), ...groupNotesForBeaming(voice2Notes)];
   }, [notes]);
   
-  const getNotePositionFromMouseEvent = (e: React.MouseEvent<SVGSVGElement>): {measure: number, beat: number, part: DrumPart, x: number, y: number} | null => {
+  const getPositionFromMouseEvent = (e: React.MouseEvent<SVGSVGElement>) => {
       const svg = e.currentTarget;
       const pt = svg.createSVGPoint();
       pt.x = e.clientX;
@@ -92,28 +100,63 @@ export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, se
       const noteAreaWidth = MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL;
       if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
 
-      const beatInMeasure = (paddedXInMeasure / noteAreaWidth) * beatsPerMeasure;
-      const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
-      const subdivision = selectedDuration === NoteDuration.SIXTEENTH ? SUBDIVISIONS_PER_BEAT * beatUnit : (selectedDuration === NoteDuration.EIGHTH ? 2 * beatUnit : 1 * beatUnit);
-      const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
-      
-      const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-      const beatX = measuresStartX + measureInLine * MEASURE_WIDTH + MEASURE_PADDING_HORIZONTAL + quantizedBeat * beatWidth;
-      const partY = lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart];
-
-      return { measure: measureIndex, beat: quantizedBeat, part: selectedDrumPart, x: beatX, y: partY };
+      return { x, y, lineIndex, measureIndex };
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPlaying) return;
-    const pos = getNotePositionFromMouseEvent(e);
-    setHoverPosition(pos ? { x: pos.x, y: pos.y, part: pos.part } : null);
+    const pos = getPositionFromMouseEvent(e);
+
+    if (selectedTool === Tool.LOOP) {
+      setHoverPosition(null);
+      setHoverMeasure(pos ? pos.measureIndex : null);
+    } else {
+      setHoverMeasure(null);
+      if (!pos) {
+        setHoverPosition(null);
+        return;
+      }
+      
+      const { x: mouseX, measureIndex } = pos;
+      const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
+      const xInMusicArea = mouseX - measuresStartX;
+      const xInMeasure = xInMusicArea - (measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH;
+
+      const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
+      
+      const beatInMeasure = (paddedXInMeasure / (MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL)) * beatsPerMeasure;
+      const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
+      const subdivision = selectedDuration === NoteDuration.SIXTEENTH ? SUBDIVISIONS_PER_BEAT * beatUnit : (selectedDuration === NoteDuration.EIGHTH ? 2 * beatUnit : 1 * beatUnit);
+      const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
+      
+      const lineYOffset = pos.lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+      const beatX = measuresStartX + (pos.measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH + MEASURE_PADDING_HORIZONTAL + quantizedBeat * beatWidth;
+      const partY = lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart];
+
+      setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
+    }
   };
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPlaying) return;
-    const pos = getNotePositionFromMouseEvent(e);
-    if(pos) onAddNote(pos.measure, pos.beat, pos.part);
+    const pos = getPositionFromMouseEvent(e);
+    if(!pos) return;
+    
+    if (selectedTool === Tool.LOOP) {
+      onMeasureClick(pos.measureIndex);
+    } else {
+      const { x: mouseX, measureIndex } = pos;
+      const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
+      const xInMusicArea = mouseX - measuresStartX;
+      const xInMeasure = xInMusicArea - (measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH;
+      const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
+      const beatInMeasure = (paddedXInMeasure / (MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL)) * beatsPerMeasure;
+      const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
+      const subdivision = selectedDuration === NoteDuration.SIXTEENTH ? SUBDIVISIONS_PER_BEAT * beatUnit : (selectedDuration === NoteDuration.EIGHTH ? 2 * beatUnit : 1 * beatUnit);
+      const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
+      
+      onAddNote(pos.measureIndex, quantizedBeat, selectedDrumPart);
+    }
   };
   
   return (
@@ -122,7 +165,7 @@ export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, se
             width={totalWidth}
             height={totalHeight}
             onMouseMove={handleMouseMove}
-            onMouseLeave={() => setHoverPosition(null)}
+            onMouseLeave={() => { setHoverPosition(null); setHoverMeasure(null); }}
             onClick={handleClick}
             className="select-none text-black dark:text-white"
         >
@@ -151,22 +194,51 @@ export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, se
                 </g>
 
                 {/* Measure lines */}
-                {measuresOnThisLine.map((_, i) => (
+                {measuresOnThisLine.map((m, i) => {
+                  const x = measuresStartX + i * MEASURE_WIDTH;
+                  return (
                     <line
                         key={i}
-                        x1={measuresStartX + i * MEASURE_WIDTH} y1={lineYOffset + STAFF_Y_OFFSET}
-                        x2={measuresStartX + i * MEASURE_WIDTH} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
+                        x1={x} y1={lineYOffset + STAFF_Y_OFFSET}
+                        x2={x} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
                         stroke="currentColor" strokeWidth={i === 0 ? '2' : '1'}
                     />
-                ))}
+                  );
+                })}
+
                 <line
                   x1={measuresStartX + measuresOnThisLine.length * MEASURE_WIDTH} y1={lineYOffset + STAFF_Y_OFFSET}
                   x2={measuresStartX + measuresOnThisLine.length * MEASURE_WIDTH} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
                   stroke="currentColor" strokeWidth="2"
                 />
+
+                {/* Loop Region Highlight */}
+                {loopRegion && (
+                  <g>
+                    {measuresOnThisLine.map((m, i) => {
+                      if (m >= loopRegion.startMeasure && m <= loopRegion.endMeasure) {
+                        const x = measuresStartX + i * MEASURE_WIDTH;
+                        return <rect key={`loop-highlight-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP} width={MEASURE_WIDTH} height={STAFF_LINE_GAP * 6} fill="rgba(59, 130, 246, 0.15)" className="pointer-events-none" />
+                      }
+                      return null;
+                    })}
+                  </g>
+                )}
               </g>
             );
           })}
+
+            {/* Hover effect for measure selection */}
+            {(hoverMeasure !== null || loopStartMeasure !== null) &&
+              [hoverMeasure, loopStartMeasure].filter(m => m !== null).map(m => {
+                const measureIndex = m as number;
+                const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
+                const measureInLine = measureIndex % MEASURES_PER_LINE;
+                const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+                const x = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH + measureInLine * MEASURE_WIDTH;
+                return <rect key={`hover-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={MEASURE_WIDTH} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.2)" className="pointer-events-none" />
+              })
+            }
 
             {/* Render Notes */}
             {noteGroups.map((group, index) => {
@@ -188,15 +260,11 @@ export const Staff: React.FC<StaffProps> = ({ notes, onAddNote, onRemoveNote, se
               return null;
             })}
           
-            {hoverPosition && !isPlaying && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
+            {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
 
             {/* Playback Cursor */}
             {isPlaying && playbackCursor && (
-                <line
-                    x1={playbackCursor.x} y1={playbackCursor.y1}
-                    x2={playbackCursor.x} y2={playbackCursor.y2}
-                    stroke="rgba(239, 68, 68, 0.8)" strokeWidth="2" className="pointer-events-none"
-                />
+                <PlaybackArrowIcon x={playbackCursor.x} y={playbackCursor.y} />
             )}
         </svg>
     </div>

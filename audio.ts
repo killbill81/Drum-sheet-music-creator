@@ -23,7 +23,7 @@ const createNoiseBuffer = (context: AudioContext): AudioBuffer => {
     return buffer;
 };
 
-const playKick = (context: AudioContext, time: number) => {
+const playKick = (context: AudioContext, time: number): AudioScheduledSourceNode => {
   const osc = context.createOscillator();
   const gain = context.createGain();
   osc.connect(gain);
@@ -36,9 +36,10 @@ const playKick = (context: AudioContext, time: number) => {
 
   osc.start(time);
   osc.stop(time + 0.2);
+  return osc;
 };
 
-const playSnare = (context: AudioContext, time: number) => {
+const playSnare = (context: AudioContext, time: number): AudioScheduledSourceNode[] => {
     const noise = context.createBufferSource();
     noise.buffer = createNoiseBuffer(context);
     const noiseFilter = context.createBiquadFilter();
@@ -66,9 +67,10 @@ const playSnare = (context: AudioContext, time: number) => {
     oscEnvelope.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
     osc.start(time)
     osc.stop(time + 0.1)
+    return [noise, osc];
 };
 
-const playHiHat = (context: AudioContext, time: number) => {
+const playHiHat = (context: AudioContext, time: number): AudioScheduledSourceNode => {
     const noise = context.createBufferSource();
     noise.buffer = createNoiseBuffer(context);
     const bandpass = context.createBiquadFilter();
@@ -90,9 +92,10 @@ const playHiHat = (context: AudioContext, time: number) => {
     envelope.gain.exponentialRampToValueAtTime(0.00001, time + 0.05);
     noise.start(time);
     noise.stop(time + 0.05);
+    return noise;
 };
 
-const playTom = (context: AudioContext, time: number, frequency: number) => {
+const playTom = (context: AudioContext, time: number, frequency: number): AudioScheduledSourceNode => {
     const osc = context.createOscillator();
     const gain = context.createGain();
     osc.connect(gain);
@@ -105,9 +108,10 @@ const playTom = (context: AudioContext, time: number, frequency: number) => {
 
     osc.start(time);
     osc.stop(time + 0.2);
+    return osc;
 }
 
-const playCymbal = (context: AudioContext, time: number) => {
+const playCymbal = (context: AudioContext, time: number): AudioScheduledSourceNode => {
     const noise = context.createBufferSource();
     noise.buffer = createNoiseBuffer(context);
     const bandpass = context.createBiquadFilter();
@@ -123,34 +127,28 @@ const playCymbal = (context: AudioContext, time: number) => {
     envelope.gain.exponentialRampToValueAtTime(0.0001, time + 1.5);
     noise.start(time);
     noise.stop(time + 1.5);
+    return noise;
 }
 
 
-export const playSoundForPart = (context: AudioContext, part: DrumPart, time: number) => {
+export const playSoundForPart = (context: AudioContext, part: DrumPart, time: number): AudioScheduledSourceNode | AudioScheduledSourceNode[] | null => {
   switch (part) {
     case DrumPart.BASS_DRUM:
-      playKick(context, time);
-      break;
+      return playKick(context, time);
     case DrumPart.SNARE:
-      playSnare(context, time);
-      break;
+      return playSnare(context, time);
     case DrumPart.HI_HAT_CLOSED:
-      playHiHat(context, time);
-      break;
+      return playHiHat(context, time);
     case DrumPart.HIGH_TOM:
-      playTom(context, time, 300);
-      break;
+      return playTom(context, time, 300);
     case DrumPart.MID_TOM:
-      playTom(context, time, 240);
-      break;
+      return playTom(context, time, 240);
     case DrumPart.FLOOR_TOM:
-      playTom(context, time, 180);
-      break;
+      return playTom(context, time, 180);
     case DrumPart.CRASH_CYMBAL:
     case DrumPart.RIDE_CYMBAL:
-      playCymbal(context, time);
-      break;
+      return playCymbal(context, time);
     default:
-      break;
+      return null;
   }
 };

@@ -66,6 +66,7 @@ export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
 export const TOOLBAR_TOOLS = [
   { id: Tool.PEN, label: 'Pen' },
   { id: Tool.ERASER, label: 'Eraser' },
+  { id: Tool.LOOP, label: 'Loop' },
 ];
 
 export const TOOLBAR_DURATIONS = [

@@ -12,6 +12,13 @@ export const EraserIcon = () => (
   </svg>
 );
 
+export const LoopIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9a9 9 0 0114.65-4.65L20 5M20 15a9 9 0 01-14.65 4.65L4 19" />
+    </svg>
+);
+
 export const QuarterNoteIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
     <circle cx="10" cy="45" r="5" fill="currentColor"/>
@@ -55,4 +62,10 @@ export const StopIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
   </svg>
+);
+
+export const PlaybackArrowIcon = ({ x, y }: { x: number; y: number }) => (
+    <svg x={x - 8} y={y - 16} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-blue-500">
+        <path d="M12 21l-12-18h24z"/>
+    </svg>
 );

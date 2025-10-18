@@ -1,7 +1,7 @@
 import React from 'react';
-import { NoteDuration, DrumPart, Tool, TimeSignature } from '../types';
+import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion } from '../types';
 import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, PlayIcon, StopIcon } from './Icons';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, PlayIcon, StopIcon, LoopIcon } from './Icons';
 
 interface ToolbarProps {
   selectedTool: Tool;
@@ -17,6 +17,8 @@ interface ToolbarProps {
   onTempoChange: (newTempo: number) => void;
   timeSignature: TimeSignature;
   onTimeSignatureChange: (newTimeSignature: TimeSignature) => void;
+  loopRegion: LoopRegion;
+  onLoopButtonClick: () => void;
 }
 
 const DurationIcons: Record<NoteDuration, React.ReactNode> = {
@@ -25,6 +27,12 @@ const DurationIcons: Record<NoteDuration, React.ReactNode> = {
   [NoteDuration.SIXTEENTH]: <SixteenthNoteIcon />,
   [NoteDuration.HALF]: <QuarterNoteIcon />, // Placeholder
   [NoteDuration.WHOLE]: <QuarterNoteIcon />, // Placeholder
+};
+
+const ToolIcons: Record<Tool, React.ReactNode> = {
+    [Tool.PEN]: <PenIcon />,
+    [Tool.ERASER]: <EraserIcon />,
+    [Tool.LOOP]: <LoopIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
@@ -43,7 +51,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   tempo,
   onTempoChange,
   timeSignature,
-  onTimeSignatureChange
+  onTimeSignatureChange,
+  loopRegion,
+  onLoopButtonClick
 }) => {
   const getButtonClass = (isSelected: boolean) =>
     `p-2 rounded-lg transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 ${
@@ -63,11 +73,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-200/50 dark:bg-gray-800/50 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-wrap gap-4 items-center justify-center">
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
-        {TOOLBAR_TOOLS.map(({ id, label }) => (
-          <button key={id} onClick={() => setSelectedTool(id)} className={getButtonClass(selectedTool === id)} title={label}>
-            {id === Tool.PEN ? <PenIcon /> : <EraserIcon />}
-          </button>
-        ))}
+        {TOOLBAR_TOOLS.map(({ id, label }) => {
+          if (id === Tool.LOOP) {
+            return (
+              <button key={id} onClick={onLoopButtonClick} className={getButtonClass(selectedTool === id || !!loopRegion)} title={label}>
+                {ToolIcons[id]}
+              </button>
+            )
+          }
+          return (
+            <button key={id} onClick={() => setSelectedTool(id)} className={getButtonClass(selectedTool === id)} title={label}>
+              {ToolIcons[id]}
+            </button>
+          )
+        })}
       </div>
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
