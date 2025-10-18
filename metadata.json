@@ -1,0 +1,5 @@
+{
+  "name": "Drum Sheet Music Creator",
+  "description": "An intuitive web application for creating and editing drum sheet music. Easily place notes for various drum parts, select note durations, and build your rhythms on a clean, interactive staff.",
+  "requestFramePermissions": []
+}
