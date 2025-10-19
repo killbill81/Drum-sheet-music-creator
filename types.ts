@@ -1,12 +1,15 @@
 export enum DrumPart {
   BASS_DRUM = 'BASS_DRUM',
   SNARE = 'SNARE',
-  HI_HAT_CLOSED = 'HI_HAT_CLOSED',
-  CRASH_CYMBAL = 'CRASH_CYMBAL',
-  RIDE_CYMBAL = 'RIDE_CYMBAL',
+  SIDESTICK = 'SIDESTICK',
   HIGH_TOM = 'HIGH_TOM',
   MID_TOM = 'MID_TOM',
   FLOOR_TOM = 'FLOOR_TOM',
+  HI_HAT_CLOSED = 'HI_HAT_CLOSED',
+  HI_HAT_OPEN = 'HI_HAT_OPEN',
+  HI_HAT_PEDAL = 'HI_HAT_PEDAL',
+  CRASH_CYMBAL = 'CRASH_CYMBAL',
+  RIDE_CYMBAL = 'RIDE_CYMBAL',
 }
 
 export enum NoteDuration {
@@ -15,15 +18,17 @@ export enum NoteDuration {
   QUARTER = 'quarter',
   EIGHTH = 'eighth',
   SIXTEENTH = 'sixteenth',
+  THIRTY_SECOND = 'thirty_second',
 }
 
 export enum Tool {
   PEN = 'pen',
   ERASER = 'eraser',
   LOOP = 'loop',
+  COPY = 'copy',
 }
 
-export type NoteHeadType = 'x' | 'normal';
+export type NoteHeadType = 'x' | 'normal' | 'open_x';
 
 export interface Note {
   id: string;
@@ -43,3 +48,11 @@ export interface TimeSignature {
 export type PlaybackCursor = { x: number; y: number } | null;
 
 export type LoopRegion = { startMeasure: number; endMeasure: number } | null;
+
+export interface Partition {
+  id: string;
+  name: string;
+  notes: Note[];
+  timeSignature: TimeSignature;
+  tempo: number;
+}

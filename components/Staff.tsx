@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion } from '../types';
 import {
-  STAFF_HEIGHT, STAFF_LINE_GAP, MEASURE_WIDTH,
+  STAFF_HEIGHT, STAFF_LINE_GAP,
   NUM_MEASURES, STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
   SUBDIVISIONS_PER_BEAT, DRUM_PART_Y_POSITIONS,
   MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
@@ -32,7 +32,7 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
   let currentGroup: NoteType[] = [];
 
   for (const note of sortedNotes) {
-    if (note.duration !== NoteDuration.EIGHTH && note.duration !== NoteDuration.SIXTEENTH) {
+    if (note.duration !== NoteDuration.EIGHTH && note.duration !== NoteDuration.SIXTEENTH && note.duration !== NoteDuration.THIRTY_SECOND) {
       if (currentGroup.length > 0) groups.push(currentGroup);
       groups.push([note]);
       currentGroup = [];
@@ -63,10 +63,41 @@ export const Staff: React.FC<StaffProps> = ({
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
   
   const beatsPerMeasure = timeSignature.top;
-  const beatWidth = (MEASURE_WIDTH - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
   const numLines = Math.ceil(NUM_MEASURES / MEASURES_PER_LINE);
-  
-  const totalWidth = useMemo(() => STAFF_X_OFFSET + (MEASURE_WIDTH * MEASURES_PER_LINE) + STAFF_X_OFFSET, []);
+
+  const layout = useMemo(() => {
+    const measureWidths = Array.from({ length: NUM_MEASURES }).map((_, mIndex) => {
+      const notesInMeasure = notes.filter(n => n.measure === mIndex);
+      if (notesInMeasure.length === 0) return 200;
+      const has32nds = notesInMeasure.some(n => n.duration === NoteDuration.THIRTY_SECOND);
+      const has16ths = notesInMeasure.some(n => n.duration === NoteDuration.SIXTEENTH);
+      if (has32nds) return 400;
+      if (has16ths) return 300;
+      if (notesInMeasure.length > 8) return 250;
+      return 200;
+    });
+
+    const measureStartXs: number[][] = [];
+    const lineTotalWidths: number[] = [];
+    const lineStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
+
+    for (let i = 0; i < numLines; i++) {
+      measureStartXs[i] = [];
+      let currentX = lineStartX;
+      for (let j = 0; j < MEASURES_PER_LINE; j++) {
+        const measureIndex = i * MEASURES_PER_LINE + j;
+        if (measureIndex < NUM_MEASURES) {
+          measureStartXs[i][j] = currentX;
+          currentX += measureWidths[measureIndex];
+        }
+      }
+      lineTotalWidths[i] = currentX;
+    }
+
+    const totalWidth = Math.max(...lineTotalWidths) + STAFF_X_OFFSET;
+    return { measureWidths, measureStartXs, lineTotalWidths, totalWidth };
+  }, [notes, numLines]);
+
   const totalHeight = useMemo(() => numLines * STAFF_HEIGHT + (numLines - 1) * STAFF_VERTICAL_GAP + 20, [numLines]);
 
   const noteGroups = useMemo(() => {
@@ -84,30 +115,35 @@ export const Staff: React.FC<StaffProps> = ({
 
       const lineIndex = Math.floor(y / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
       if (lineIndex < 0 || lineIndex >= numLines) return null;
-      
-      const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-      const musicAreaX = x - measuresStartX;
-      if (musicAreaX < 0) return null;
 
-      const measureInLine = Math.floor(musicAreaX / MEASURE_WIDTH);
-      if (measureInLine < 0 || measureInLine >= MEASURES_PER_LINE) return null;
-      
+      const lineMeasureStartXs = layout.measureStartXs[lineIndex];
+      if (!lineMeasureStartXs) return null;
+
+      let measureInLine = lineMeasureStartXs.findIndex((startX, i) => {
+        const measureIndex = lineIndex * MEASURES_PER_LINE + i;
+        const nextStartX = lineMeasureStartXs[i+1] || (startX + layout.measureWidths[measureIndex]);
+        return x >= startX && x < nextStartX;
+      });
+
+      if (measureInLine === -1) return null;
+
       const measureIndex = lineIndex * MEASURES_PER_LINE + measureInLine;
       if (measureIndex >= NUM_MEASURES) return null;
 
-      const xInMeasure = musicAreaX % MEASURE_WIDTH;
+      const xInMeasure = x - lineMeasureStartXs[measureInLine];
+      const currentMeasureWidth = layout.measureWidths[measureIndex];
       const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
-      const noteAreaWidth = MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL;
+      const noteAreaWidth = currentMeasureWidth - 2 * MEASURE_PADDING_HORIZONTAL;
       if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
 
-      return { x, y, lineIndex, measureIndex };
+      return { x, y, lineIndex, measureIndex, currentMeasureWidth, xInMeasure, paddedXInMeasure, noteAreaWidth };
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPlaying) return;
     const pos = getPositionFromMouseEvent(e);
 
-    if (selectedTool === Tool.LOOP) {
+    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY) {
       setHoverPosition(null);
       setHoverMeasure(pos ? pos.measureIndex : null);
     } else {
@@ -117,20 +153,19 @@ export const Staff: React.FC<StaffProps> = ({
         return;
       }
       
-      const { x: mouseX, measureIndex } = pos;
-      const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-      const xInMusicArea = mouseX - measuresStartX;
-      const xInMeasure = xInMusicArea - (measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH;
-
-      const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
-      
-      const beatInMeasure = (paddedXInMeasure / (MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL)) * beatsPerMeasure;
+      const { measureIndex, paddedXInMeasure, noteAreaWidth, lineIndex } = pos;
+      const beatInMeasure = (paddedXInMeasure / noteAreaWidth) * beatsPerMeasure;
       const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
-      const subdivision = selectedDuration === NoteDuration.SIXTEENTH ? SUBDIVISIONS_PER_BEAT * beatUnit : (selectedDuration === NoteDuration.EIGHTH ? 2 * beatUnit : 1 * beatUnit);
+      let subdivision = 1 * beatUnit;
+      if (selectedDuration === NoteDuration.SIXTEENTH) subdivision = SUBDIVISIONS_PER_BEAT * beatUnit;
+      else if (selectedDuration === NoteDuration.EIGHTH) subdivision = 2 * beatUnit;
+      else if (selectedDuration === NoteDuration.THIRTY_SECOND) subdivision = 8 * beatUnit;
+
       const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
       
-      const lineYOffset = pos.lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-      const beatX = measuresStartX + (pos.measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH + MEASURE_PADDING_HORIZONTAL + quantizedBeat * beatWidth;
+      const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+      const beatWidth = noteAreaWidth / beatsPerMeasure;
+      const beatX = layout.measureStartXs[lineIndex][measureIndex % MEASURES_PER_LINE] + MEASURE_PADDING_HORIZONTAL + quantizedBeat * beatWidth;
       const partY = lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart];
 
       setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
@@ -142,17 +177,17 @@ export const Staff: React.FC<StaffProps> = ({
     const pos = getPositionFromMouseEvent(e);
     if(!pos) return;
     
-    if (selectedTool === Tool.LOOP) {
+    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY) {
       onMeasureClick(pos.measureIndex);
-    } else {
-      const { x: mouseX, measureIndex } = pos;
-      const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-      const xInMusicArea = mouseX - measuresStartX;
-      const xInMeasure = xInMusicArea - (measureIndex % MEASURES_PER_LINE) * MEASURE_WIDTH;
-      const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
-      const beatInMeasure = (paddedXInMeasure / (MEASURE_WIDTH - 2 * MEASURE_PADDING_HORIZONTAL)) * beatsPerMeasure;
+    } else if (selectedTool === Tool.PEN) {
+      const { measureIndex, paddedXInMeasure, noteAreaWidth } = pos;
+      const beatInMeasure = (paddedXInMeasure / noteAreaWidth) * beatsPerMeasure;
       const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
-      const subdivision = selectedDuration === NoteDuration.SIXTEENTH ? SUBDIVISIONS_PER_BEAT * beatUnit : (selectedDuration === NoteDuration.EIGHTH ? 2 * beatUnit : 1 * beatUnit);
+      let subdivision = 1 * beatUnit;
+      if (selectedDuration === NoteDuration.SIXTEENTH) subdivision = SUBDIVISIONS_PER_BEAT * beatUnit;
+      else if (selectedDuration === NoteDuration.EIGHTH) subdivision = 2 * beatUnit;
+      else if (selectedDuration === NoteDuration.THIRTY_SECOND) subdivision = 8 * beatUnit;
+
       const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
       
       onAddNote(pos.measureIndex, quantizedBeat, selectedDrumPart);
@@ -162,7 +197,7 @@ export const Staff: React.FC<StaffProps> = ({
   return (
     <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4">
         <svg
-            width={totalWidth}
+            width={layout.totalWidth}
             height={totalHeight}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => { setHoverPosition(null); setHoverMeasure(null); }}
@@ -172,7 +207,6 @@ export const Staff: React.FC<StaffProps> = ({
           {Array.from({ length: numLines }).map((_, lineIndex) => {
             const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
             const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < NUM_MEASURES);
-            const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
 
             return (
               <g key={`line-${lineIndex}`}>
@@ -180,7 +214,7 @@ export const Staff: React.FC<StaffProps> = ({
                 {Array.from({ length: 5 }).map((_, i) => (
                     <line
                         key={i} x1={STAFF_X_OFFSET} y1={lineYOffset + STAFF_Y_OFFSET + i * STAFF_LINE_GAP}
-                        x2={measuresStartX + measuresOnThisLine.length * MEASURE_WIDTH} y2={lineYOffset + STAFF_Y_OFFSET + i * STAFF_LINE_GAP}
+                        x2={layout.lineTotalWidths[lineIndex]} y2={lineYOffset + STAFF_Y_OFFSET + i * STAFF_LINE_GAP}
                         stroke="currentColor" strokeWidth="1"
                     />
                 ))}
@@ -195,7 +229,7 @@ export const Staff: React.FC<StaffProps> = ({
 
                 {/* Measure lines */}
                 {measuresOnThisLine.map((m, i) => {
-                  const x = measuresStartX + i * MEASURE_WIDTH;
+                  const x = layout.measureStartXs[lineIndex][i];
                   return (
                     <line
                         key={i}
@@ -207,8 +241,8 @@ export const Staff: React.FC<StaffProps> = ({
                 })}
 
                 <line
-                  x1={measuresStartX + measuresOnThisLine.length * MEASURE_WIDTH} y1={lineYOffset + STAFF_Y_OFFSET}
-                  x2={measuresStartX + measuresOnThisLine.length * MEASURE_WIDTH} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
+                  x1={layout.lineTotalWidths[lineIndex]} y1={lineYOffset + STAFF_Y_OFFSET}
+                  x2={layout.lineTotalWidths[lineIndex]} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
                   stroke="currentColor" strokeWidth="2"
                 />
 
@@ -217,8 +251,8 @@ export const Staff: React.FC<StaffProps> = ({
                   <g>
                     {measuresOnThisLine.map((m, i) => {
                       if (m >= loopRegion.startMeasure && m <= loopRegion.endMeasure) {
-                        const x = measuresStartX + i * MEASURE_WIDTH;
-                        return <rect key={`loop-highlight-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP} width={MEASURE_WIDTH} height={STAFF_LINE_GAP * 6} fill="rgba(59, 130, 246, 0.15)" className="pointer-events-none" />
+                        const x = layout.measureStartXs[lineIndex][i];
+                        return <rect key={`loop-highlight-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP} width={layout.measureWidths[m]} height={STAFF_LINE_GAP * 6} fill="rgba(59, 130, 246, 0.15)" className="pointer-events-none" />
                       }
                       return null;
                     })}
@@ -235,8 +269,8 @@ export const Staff: React.FC<StaffProps> = ({
                 const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
                 const measureInLine = measureIndex % MEASURES_PER_LINE;
                 const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-                const x = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH + measureInLine * MEASURE_WIDTH;
-                return <rect key={`hover-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={MEASURE_WIDTH} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.2)" className="pointer-events-none" />
+                const x = layout.measureStartXs[lineIndex][measureInLine];
+                return <rect key={`hover-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.2)" className="pointer-events-none" />
               })
             }
 
@@ -244,18 +278,23 @@ export const Staff: React.FC<StaffProps> = ({
             {noteGroups.map((group, index) => {
               const lineIndex = Math.floor(group[0].measure / MEASURES_PER_LINE);
               const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-              const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
               
-              const calculateX = (note: NoteType) => measuresStartX + (note.measure % MEASURES_PER_LINE) * MEASURE_WIDTH + MEASURE_PADDING_HORIZONTAL + note.beat * beatWidth;
+              const calculateX = (note: NoteType) => {
+                const measureIndex = note.measure;
+                const measureInLine = measureIndex % MEASURES_PER_LINE;
+                const measureStart = layout.measureStartXs[lineIndex][measureInLine];
+                const beatWidth = (layout.measureWidths[measureIndex] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
+                return measureStart + MEASURE_PADDING_HORIZONTAL + note.beat * beatWidth;
+              };
               const calculateY = (note: NoteType) => lineYOffset + DRUM_PART_Y_POSITIONS[note.part];
 
               if (group.length > 1) {
                 const notePositions: NotePosition[] = group.map(note => ({ note, x: calculateX(note), y: calculateY(note) }));
-                return <BeamedNoteGroup key={`group-${index}`} notePositions={notePositions} onNoteClick={onRemoveNote} />;
+                return <BeamedNoteGroup key={`group-${index}`} notePositions={notePositions} onNoteClick={onRemoveNote} selectedTool={selectedTool} />;
               }
               if (group.length === 1) {
                 const note = group[0];
-                return <Note key={note.id} note={note} x={calculateX(note)} y={calculateY(note)} onClick={onRemoveNote} />;
+                return <Note key={note.id} note={note} x={calculateX(note)} y={calculateY(note)} onClick={onRemoveNote} selectedTool={selectedTool} />;
               }
               return null;
             })}
