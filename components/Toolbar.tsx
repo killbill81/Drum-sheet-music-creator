@@ -1,7 +1,7 @@
 import React from 'react';
 import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition } from '../types';
 import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, ThirtySecondNoteIcon } from './Icons';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, ThirtySecondNoteIcon, AddLineIcon, TextIcon } from './Icons';
 
 interface ToolbarProps {
   className?: string;
@@ -11,6 +11,7 @@ interface ToolbarProps {
   onCreatePartition: () => void;
   onDeletePartition: (id: string) => void;
   onRenamePartition: (name: string) => void;
+  onAddLine: () => void;
   selectedTool: Tool;
   setSelectedTool: (tool: Tool) => void;
   selectedDuration: NoteDuration;
@@ -45,6 +46,7 @@ const ToolIcons: Record<Tool, React.ReactNode> = {
     [Tool.ERASER]: <EraserIcon />,
     [Tool.LOOP]: <LoopIcon />,
     [Tool.COPY]: <CopyIcon />,
+    [Tool.TEXT]: <TextIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
@@ -57,6 +59,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onCreatePartition,
   onDeletePartition,
   onRenamePartition,
+  onAddLine,
   selectedTool,
   setSelectedTool,
   selectedDuration,
@@ -111,6 +114,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
         <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Partition">
           <TrashIcon />
+        </button>
+        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line">
+          <AddLineIcon />
         </button>
       </div>
 

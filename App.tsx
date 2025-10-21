@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Note, Tool, NoteDuration, DrumPart, TimeSignature, PlaybackCursor, LoopRegion, Partition } from './types';
-import { Staff } from './components/Staff';
+import { Note, Tool, NoteDuration, DrumPart, TimeSignature, PlaybackCursor, LoopRegion, Partition, TextAnnotation } from './types';
+import { Staff, StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
-import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS } from './constants';
+import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
-import { STAFF_X_OFFSET, CLEF_WIDTH, NUM_MEASURES, MEASURE_WIDTH, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
+import { STAFF_X_OFFSET, CLEF_WIDTH, TIME_SIGNATURE_WIDTH, STAFF_Y_OFFSET } from './constants';
 
 const App: React.FC = () => {
   const [partitions, setPartitions] = useState<Partition[]>([]);
@@ -27,12 +27,19 @@ const App: React.FC = () => {
   const nextLoopTimeoutRef = useRef<number | undefined>();
   const playbackTimeoutsRef = useRef<number[]>([]);
 
-  // Load partitions from localStorage on initial render
   useEffect(() => {
     try {
       const savedPartitions = localStorage.getItem('drum-partitions');
       if (savedPartitions) {
-        const parsedPartitions = JSON.parse(savedPartitions);
+        let parsedPartitions = JSON.parse(savedPartitions);
+        if (Array.isArray(parsedPartitions)) {
+          parsedPartitions = parsedPartitions.map(p => ({
+            ...p,
+            numMeasures: p.numMeasures || 16,
+            textAnnotations: p.textAnnotations || [],
+          }));
+        }
+
         if (Array.isArray(parsedPartitions) && parsedPartitions.length > 0) {
           setPartitions(parsedPartitions);
           setCurrentPartitionId(parsedPartitions[0].id);
@@ -48,7 +55,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Save partitions to localStorage whenever they change
   useEffect(() => {
     if (partitions.length > 0) {
       localStorage.setItem('drum-partitions', JSON.stringify(partitions));
@@ -75,9 +81,16 @@ const App: React.FC = () => {
       notes: [],
       timeSignature: { top: 4, bottom: 4 },
       tempo: 120,
+      numMeasures: 8,
+      textAnnotations: [],
     };
     setPartitions(prev => [...prev, newPartition]);
     setCurrentPartitionId(newPartition.id);
+  };
+
+  const handleAddLine = () => {
+    if (!currentPartition) return;
+    updateCurrentPartition({ numMeasures: currentPartition.numMeasures + MEASURES_PER_LINE });
   };
 
   const handleDeletePartition = (idToDelete: string) => {
@@ -96,6 +109,14 @@ const App: React.FC = () => {
 
   const handleRenamePartition = (newName: string) => {
     updateCurrentPartition({ name: newName });
+  };
+
+  const handleUpdateTextAnnotation = (id: string, x: number, y: number) => {
+    if (!currentPartition) return;
+    const newAnnotations = currentPartition.textAnnotations.map(ann => 
+      ann.id === id ? { ...ann, x, y } : ann
+    );
+    updateCurrentPartition({ textAnnotations: newAnnotations });
   };
 
   const stopPlayback = useCallback(() => {
@@ -118,47 +139,60 @@ const App: React.FC = () => {
     return () => stopPlayback();
   }, [stopPlayback]);
 
-  const handleAddNote = useCallback((measure: number, beat: number, part: DrumPart) => {
-    if (!currentPartition) return;
-    if (selectedTool !== Tool.PEN) return;
-
-    const { notes, timeSignature } = currentPartition;
-    const noteToReplace = notes.find(n => n.measure === measure && n.beat === beat && n.part === part);
-    if (noteToReplace && noteToReplace.duration === selectedDuration) return;
-
-    const voice = DRUM_PART_VOICE[part];
-    const measureCapacity = timeSignature.top / timeSignature.bottom;
-    const newNoteValue = NOTE_TYPE_TO_FRACTIONAL_VALUE[selectedDuration];
-    const valueOfOtherNotes = notes
-      .filter(n => n.measure === measure && n.voice === voice && n.id !== noteToReplace?.id)
-      .reduce((sum, note) => sum + NOTE_TYPE_TO_FRACTIONAL_VALUE[note.duration], 0);
-
-    if (valueOfOtherNotes + newNoteValue > measureCapacity + 1e-6) {
-      console.warn(`Cannot add note: exceeds measure capacity for voice ${voice}.`);
-      return;
-    }
-
-    const newNote: Note = {
-      id: crypto.randomUUID(),
-      part,
-      duration: selectedDuration,
-      beat,
-      measure,
-      stemDirection: voice === 1 ? 'up' : 'down',
-      voice,
-    };
-
-    const notesWithoutReplaced = noteToReplace ? notes.filter(n => n.id !== noteToReplace.id) : notes;
-    const newNotes = [...notesWithoutReplaced, newNote].sort((a, b) => a.measure - b.measure || a.beat - b.beat);
-    updateCurrentPartition({ notes: newNotes });
-  }, [selectedTool, selectedDuration, currentPartition, updateCurrentPartition]);
-
   const handleNoteClick = useCallback((noteId: string) => {
     if (selectedTool === Tool.ERASER && currentPartition) {
       const newNotes = currentPartition.notes.filter(note => note.id !== noteId);
       updateCurrentPartition({ notes: newNotes });
     }
   }, [selectedTool, currentPartition, updateCurrentPartition]);
+
+  const handleStaffClick = (info: StaffClickInfo) => {
+    if (!currentPartition) return;
+
+    if (selectedTool === Tool.PEN) {
+      const { notes, timeSignature } = currentPartition;
+      const noteToReplace = notes.find(n => n.measure === info.measureIndex && n.beat === info.beat && n.part === selectedDrumPart);
+      if (noteToReplace && noteToReplace.duration === selectedDuration) return;
+
+      const voice = DRUM_PART_VOICE[selectedDrumPart];
+      const measureCapacity = timeSignature.top / timeSignature.bottom;
+      const newNoteValue = NOTE_TYPE_TO_FRACTIONAL_VALUE[selectedDuration];
+      const valueOfOtherNotes = notes
+        .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
+        .reduce((sum, note) => sum + NOTE_TYPE_TO_FRACTIONAL_VALUE[note.duration], 0);
+
+      if (valueOfOtherNotes + newNoteValue > measureCapacity + 1e-6) {
+        console.warn(`Cannot add note: exceeds measure capacity for voice ${voice}.`);
+        return;
+      }
+
+      const newNote: Note = {
+        id: crypto.randomUUID(),
+        part: selectedDrumPart,
+        duration: selectedDuration,
+        beat: info.beat,
+        measure: info.measureIndex,
+        stemDirection: voice === 1 ? 'up' : 'down',
+        voice,
+      };
+
+      const notesWithoutReplaced = noteToReplace ? notes.filter(n => n.id !== noteToReplace.id) : notes;
+      const newNotes = [...notesWithoutReplaced, newNote].sort((a, b) => a.measure - b.measure || a.beat - b.beat);
+      updateCurrentPartition({ notes: newNotes });
+    } else if (selectedTool === Tool.TEXT) {
+      const text = window.prompt("Enter text:");
+      if (text) {
+        const newAnnotation: TextAnnotation = {
+          id: crypto.randomUUID(),
+          text,
+          x: info.x,
+          y: info.y,
+        };
+        updateCurrentPartition({ textAnnotations: [...currentPartition.textAnnotations, newAnnotation] });
+        setSelectedTool(Tool.PEN);
+      }
+    }
+  };
 
   const handleTimeSignatureChange = (newTimeSignature: TimeSignature) => {
     if (currentPartition?.notes.length > 0) {
@@ -217,9 +251,7 @@ const App: React.FC = () => {
         setCopiedMeasureNotes(notesToCopy);
         setCopyStep('paste');
       } else if (copyStep === 'paste' && copiedMeasureNotes) {
-        // Remove existing notes in the target measure
         const notesOutsideTarget = currentPartition.notes.filter(n => n.measure !== measureIndex);
-        // Create new notes for the target measure
         const newNotesForMeasure = copiedMeasureNotes.map(note => ({
           ...note,
           id: crypto.randomUUID(),
@@ -227,7 +259,6 @@ const App: React.FC = () => {
         }));
         const newNotes = [...notesOutsideTarget, ...newNotesForMeasure].sort((a, b) => a.measure - b.measure || a.beat - b.beat);
         updateCurrentPartition({ notes: newNotes });
-        // Reset copy state
         setCopyStep(null);
         setCopiedMeasureNotes(null);
         setSelectedTool(Tool.PEN);
@@ -242,7 +273,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const { notes, tempo, timeSignature } = currentPartition;
+    const { notes, tempo, timeSignature, numMeasures } = currentPartition;
     const notesToPlay = loopRegion
       ? notes.filter(n => n.measure >= loopRegion.startMeasure && n.measure <= loopRegion.endMeasure)
       : notes;
@@ -296,8 +327,8 @@ const App: React.FC = () => {
           const lineIndex = Math.floor(firstNote.measure / MEASURES_PER_LINE);
           const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
           const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-          const beatWidth = (MEASURE_WIDTH - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
-          const x = measuresStartX + (firstNote.measure % MEASURES_PER_LINE) * MEASURE_WIDTH + MEASURE_PADDING_HORIZONTAL + firstNote.beat * beatWidth;
+          const beatWidth = (layout.measureWidths[firstNote.measure] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
+          const x = layout.measureStartXs[lineIndex][firstNote.measure % MEASURES_PER_LINE] + MEASURE_PADDING_HORIZONTAL + firstNote.beat * beatWidth;
           const y = lineYOffset + STAFF_Y_OFFSET - (STAFF_LINE_GAP * 2);
           setPlaybackCursor({ x, y });
         }, delay);
@@ -305,7 +336,7 @@ const App: React.FC = () => {
         currentLoopTimeouts.push(timeoutId);
       });
 
-      const endMeasure = loopRegion ? loopRegion.endMeasure : NUM_MEASURES - 1;
+      const endMeasure = loopRegion ? loopRegion.endMeasure : numMeasures - 1;
       const totalDurationInBeats = (endMeasure - startMeasure + 1) * beatsPerMeasure;
       const totalDurationInSeconds = totalDurationInBeats * secondsPerBeat;
 
@@ -353,7 +384,7 @@ const App: React.FC = () => {
         if (typeof result !== 'string') throw new Error("File is not readable");
         const loadedData = JSON.parse(result);
 
-        if (Array.isArray(loadedData) && loadedData.every(p => p.id && p.name && p.notes && p.timeSignature && p.tempo)) {
+        if (Array.isArray(loadedData) && loadedData.every(p => p.id && p.name && p.notes && p.timeSignature && p.tempo && p.numMeasures)) {
           setPartitions(loadedData);
           setCurrentPartitionId(loadedData[0]?.id || null);
         } else {
@@ -392,6 +423,7 @@ const App: React.FC = () => {
         onCreatePartition={createNewPartition}
         onDeletePartition={handleDeletePartition}
         onRenamePartition={handleRenamePartition}
+        onAddLine={handleAddLine}
         selectedTool={selectedTool}
         setSelectedTool={handleToolSelect}
         selectedDuration={selectedDuration}
@@ -416,16 +448,20 @@ const App: React.FC = () => {
         <p className="mb-8 text-gray-600 dark:text-gray-400 no-print">
           {copyStep === 'copy' && "Select a measure to copy."}
           {copyStep === 'paste' && "Select a measure to paste to."}
-          {copyStep === null && loopRegion && "Playing looped section."}
-          {copyStep === null && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}
+          {selectedTool === Tool.TEXT && "Click on the score to add text."}
+          {copyStep === null && selectedTool !== Tool.TEXT && loopRegion && "Playing looped section."}
+          {copyStep === null && selectedTool !== Tool.TEXT && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}
           {selectedTool === Tool.LOOP && !loopStartMeasure && " Click a measure to start a loop."}
           {selectedTool === Tool.LOOP && loopStartMeasure !== null && ` First measure selected (${loopStartMeasure + 1}). Click another measure to end the loop.`}
         </p>
         <Staff
           notes={currentPartition.notes}
-          onAddNote={handleAddNote}
-          onRemoveNote={handleNoteClick}
+          numMeasures={currentPartition.numMeasures}
+          textAnnotations={currentPartition.textAnnotations}
+          onStaffClick={handleStaffClick}
+          onNoteClick={handleNoteClick}
           onMeasureClick={handleMeasureClick}
+          onUpdateTextAnnotation={handleUpdateTextAnnotation}
           selectedTool={selectedTool}
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}

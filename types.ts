@@ -26,6 +26,14 @@ export enum Tool {
   ERASER = 'eraser',
   LOOP = 'loop',
   COPY = 'copy',
+  TEXT = 'text',
+}
+
+export interface TextAnnotation {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
 }
 
 export type NoteHeadType = 'x' | 'normal' | 'open_x';
@@ -55,4 +63,6 @@ export interface Partition {
   notes: Note[];
   timeSignature: TimeSignature;
   tempo: number;
+  numMeasures: number;
+  textAnnotations: TextAnnotation[];
 }

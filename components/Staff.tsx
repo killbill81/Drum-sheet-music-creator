@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion } from '../types';
+import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion, TextAnnotation } from '../types';
 import {
   STAFF_HEIGHT, STAFF_LINE_GAP,
-  NUM_MEASURES, STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
+  STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
   SUBDIVISIONS_PER_BEAT, DRUM_PART_Y_POSITIONS,
   MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
 } from '../constants';
@@ -10,11 +10,21 @@ import { Note } from './Note';
 import { PercussionClef, PlaybackArrowIcon } from './Icons';
 import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 
+export interface StaffClickInfo {
+  x: number;
+  y: number;
+  measureIndex: number;
+  beat: number;
+}
+
 interface StaffProps {
   notes: NoteType[];
-  onAddNote: (measure: number, beat: number, part: DrumPart) => void;
-  onRemoveNote: (noteId: string) => void;
+  numMeasures: number;
+  textAnnotations: TextAnnotation[];
+  onStaffClick: (info: StaffClickInfo) => void;
+  onNoteClick: (noteId: string) => void;
   onMeasureClick: (measureIndex: number) => void;
+  onUpdateTextAnnotation: (id: string, x: number, y: number) => void;
   selectedTool: Tool;
   selectedDrumPart: DrumPart;
   selectedDuration: NoteDuration;
@@ -56,17 +66,18 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
 }
 
 export const Staff: React.FC<StaffProps> = ({
-  notes, onAddNote, onRemoveNote, onMeasureClick, selectedTool, selectedDrumPart, selectedDuration,
+  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onMeasureClick, onUpdateTextAnnotation, selectedTool, selectedDrumPart, selectedDuration,
   isPlaying, playbackCursor, timeSignature, loopRegion, loopStartMeasure
 }) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
+  const [draggedItem, setDraggedItem] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   
   const beatsPerMeasure = timeSignature.top;
-  const numLines = Math.ceil(NUM_MEASURES / MEASURES_PER_LINE);
+  const numLines = Math.ceil(numMeasures / MEASURES_PER_LINE);
 
   const layout = useMemo(() => {
-    const measureWidths = Array.from({ length: NUM_MEASURES }).map((_, mIndex) => {
+    const measureWidths = Array.from({ length: numMeasures }).map((_, mIndex) => {
       const notesInMeasure = notes.filter(n => n.measure === mIndex);
       if (notesInMeasure.length === 0) return 200;
       const has32nds = notesInMeasure.some(n => n.duration === NoteDuration.THIRTY_SECOND);
@@ -86,7 +97,7 @@ export const Staff: React.FC<StaffProps> = ({
       let currentX = lineStartX;
       for (let j = 0; j < MEASURES_PER_LINE; j++) {
         const measureIndex = i * MEASURES_PER_LINE + j;
-        if (measureIndex < NUM_MEASURES) {
+        if (measureIndex < numMeasures) {
           measureStartXs[i][j] = currentX;
           currentX += measureWidths[measureIndex];
         }
@@ -94,9 +105,9 @@ export const Staff: React.FC<StaffProps> = ({
       lineTotalWidths[i] = currentX;
     }
 
-    const totalWidth = Math.max(...lineTotalWidths) + STAFF_X_OFFSET;
+    const totalWidth = Math.max(...lineTotalWidths, 1000) + STAFF_X_OFFSET;
     return { measureWidths, measureStartXs, lineTotalWidths, totalWidth };
-  }, [notes, numLines]);
+  }, [notes, numMeasures]);
 
   const totalHeight = useMemo(() => numLines * STAFF_HEIGHT + (numLines - 1) * STAFF_VERTICAL_GAP + 20, [numLines]);
 
@@ -108,16 +119,14 @@ export const Staff: React.FC<StaffProps> = ({
   
   const getPositionFromMouseEvent = (e: React.MouseEvent<SVGSVGElement>) => {
       const svg = e.currentTarget;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const { x, y } = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+      const point = new DOMPoint(e.clientX, e.clientY);
+      const { x, y } = point.matrixTransform(svg.getScreenCTM()?.inverse());
 
       const lineIndex = Math.floor(y / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
-      if (lineIndex < 0 || lineIndex >= numLines) return null;
+      if (lineIndex < 0 || lineIndex >= numLines) return { x, y, lineIndex: -1, measureIndex: -1, paddedXInMeasure: -1, noteAreaWidth: -1 };
 
       const lineMeasureStartXs = layout.measureStartXs[lineIndex];
-      if (!lineMeasureStartXs) return null;
+      if (!lineMeasureStartXs) return { x, y, lineIndex, measureIndex: -1, paddedXInMeasure: -1, noteAreaWidth: -1 };
 
       let measureInLine = lineMeasureStartXs.findIndex((startX, i) => {
         const measureIndex = lineIndex * MEASURES_PER_LINE + i;
@@ -125,30 +134,50 @@ export const Staff: React.FC<StaffProps> = ({
         return x >= startX && x < nextStartX;
       });
 
-      if (measureInLine === -1) return null;
+      if (measureInLine === -1) return { x, y, lineIndex, measureIndex: -1, paddedXInMeasure: -1, noteAreaWidth: -1 };
 
       const measureIndex = lineIndex * MEASURES_PER_LINE + measureInLine;
-      if (measureIndex >= NUM_MEASURES) return null;
+      if (measureIndex >= numMeasures) return { x, y, lineIndex, measureIndex: -1, paddedXInMeasure: -1, noteAreaWidth: -1 };
 
       const xInMeasure = x - lineMeasureStartXs[measureInLine];
       const currentMeasureWidth = layout.measureWidths[measureIndex];
       const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
       const noteAreaWidth = currentMeasureWidth - 2 * MEASURE_PADDING_HORIZONTAL;
-      if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
-
+      
       return { x, y, lineIndex, measureIndex, currentMeasureWidth, xInMeasure, paddedXInMeasure, noteAreaWidth };
   };
 
+  const handleTextMouseDown = (e: React.MouseEvent, annotation: TextAnnotation) => {
+    if (selectedTool !== Tool.PEN && selectedTool !== Tool.TEXT) return;
+    e.stopPropagation();
+    const { x, y } = getPositionFromMouseEvent(e);
+    setDraggedItem({
+      id: annotation.id,
+      offsetX: x - annotation.x,
+      offsetY: y - annotation.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setDraggedItem(null);
+  };
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (isPlaying) return;
     const pos = getPositionFromMouseEvent(e);
 
-    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY) {
+    if (draggedItem) {
+      onUpdateTextAnnotation(draggedItem.id, pos.x - draggedItem.offsetX, pos.y - draggedItem.offsetY);
+      return;
+    }
+
+    if (isPlaying) return;
+
+    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY || selectedTool === Tool.TEXT) {
       setHoverPosition(null);
-      setHoverMeasure(pos ? pos.measureIndex : null);
+      setHoverMeasure(pos.measureIndex !== -1 ? pos.measureIndex : null);
     } else {
       setHoverMeasure(null);
-      if (!pos) {
+      if (pos.measureIndex === -1 || pos.paddedXInMeasure < 0) {
         setHoverPosition(null);
         return;
       }
@@ -173,15 +202,15 @@ export const Staff: React.FC<StaffProps> = ({
   };
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (draggedItem) return;
     if (isPlaying) return;
     const pos = getPositionFromMouseEvent(e);
-    if(!pos) return;
-    
+    if(pos.measureIndex === -1) return;
+
     if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY) {
       onMeasureClick(pos.measureIndex);
-    } else if (selectedTool === Tool.PEN) {
-      const { measureIndex, paddedXInMeasure, noteAreaWidth } = pos;
-      const beatInMeasure = (paddedXInMeasure / noteAreaWidth) * beatsPerMeasure;
+    } else {
+      const beatInMeasure = (pos.paddedXInMeasure / pos.noteAreaWidth) * beatsPerMeasure;
       const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
       let subdivision = 1 * beatUnit;
       if (selectedDuration === NoteDuration.SIXTEENTH) subdivision = SUBDIVISIONS_PER_BEAT * beatUnit;
@@ -190,7 +219,7 @@ export const Staff: React.FC<StaffProps> = ({
 
       const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
       
-      onAddNote(pos.measureIndex, quantizedBeat, selectedDrumPart);
+      onStaffClick({ x: pos.x, y: pos.y, measureIndex: pos.measureIndex, beat: quantizedBeat });
     }
   };
   
@@ -200,13 +229,14 @@ export const Staff: React.FC<StaffProps> = ({
             width={layout.totalWidth}
             height={totalHeight}
             onMouseMove={handleMouseMove}
-            onMouseLeave={() => { setHoverPosition(null); setHoverMeasure(null); }}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
             onClick={handleClick}
             className="select-none text-black dark:text-white"
         >
           {Array.from({ length: numLines }).map((_, lineIndex) => {
             const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-            const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < NUM_MEASURES);
+            const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < numMeasures);
 
             return (
               <g key={`line-${lineIndex}`}>
@@ -290,14 +320,30 @@ export const Staff: React.FC<StaffProps> = ({
 
               if (group.length > 1) {
                 const notePositions: NotePosition[] = group.map(note => ({ note, x: calculateX(note), y: calculateY(note) }));
-                return <BeamedNoteGroup key={`group-${index}`} notePositions={notePositions} onNoteClick={onRemoveNote} selectedTool={selectedTool} />;
+                return <BeamedNoteGroup key={`group-${index}`} notePositions={notePositions} onNoteClick={onNoteClick} selectedTool={selectedTool} />;
               }
               if (group.length === 1) {
                 const note = group[0];
-                return <Note key={note.id} note={note} x={calculateX(note)} y={calculateY(note)} onClick={onRemoveNote} selectedTool={selectedTool} />;
+                return <Note key={note.id} note={note} x={calculateX(note)} y={calculateY(note)} onClick={onNoteClick} selectedTool={selectedTool} />;
               }
               return null;
             })}
+
+            {/* Render Text Annotations */}
+            {textAnnotations.map(annotation => (
+              <text 
+                key={annotation.id} 
+                x={annotation.x} 
+                y={annotation.y} 
+                fill="currentColor" 
+                fontSize="16" 
+                textAnchor="middle"
+                onMouseDown={(e) => handleTextMouseDown(e, annotation)}
+                className="cursor-grab active:cursor-grabbing"
+              >
+                {annotation.text}
+              </text>
+            ))}
           
             {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
 
