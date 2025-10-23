@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion, TextAnnotation } from '../types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, Tool, LoopRegion, TextAnnotation } from '../types';
 import {
   STAFF_HEIGHT, STAFF_LINE_GAP,
   STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
@@ -7,7 +7,7 @@ import {
   MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
 } from '../constants';
 import { Note } from './Note';
-import { PercussionClef, PlaybackArrowIcon } from './Icons';
+import { PercussionClef } from './Icons';
 import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 
 export interface StaffClickInfo {
@@ -29,7 +29,8 @@ interface StaffProps {
   selectedDrumPart: DrumPart;
   selectedDuration: NoteDuration;
   isPlaying: boolean;
-  playbackCursor: PlaybackCursor;
+  playbackStartTime: number | null;
+  tempo: number;
   timeSignature: TimeSignature;
   loopRegion: LoopRegion;
   loopStartMeasure: number | null;
@@ -67,12 +68,14 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
 
 export const Staff: React.FC<StaffProps> = ({
   notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onMeasureClick, onUpdateTextAnnotation, selectedTool, selectedDrumPart, selectedDuration,
-  isPlaying, playbackCursor, timeSignature, loopRegion, loopStartMeasure
+  isPlaying, playbackStartTime, tempo, timeSignature, loopRegion, loopStartMeasure
 }) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
-  
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; line: number } | null>(null);
+  const animationFrameRef = useRef<number>();
+
   const beatsPerMeasure = timeSignature.top;
   const numLines = Math.ceil(numMeasures / MEASURES_PER_LINE);
 
@@ -110,6 +113,54 @@ export const Staff: React.FC<StaffProps> = ({
   }, [notes, numMeasures]);
 
   const totalHeight = useMemo(() => numLines * STAFF_HEIGHT + (numLines - 1) * STAFF_VERTICAL_GAP + 20, [numLines]);
+
+  useEffect(() => {
+    if (isPlaying && playbackStartTime) {
+      const animate = () => {
+        const elapsedTime = performance.now() - playbackStartTime;
+        const totalBeatsElapsed = (elapsedTime / 1000) * (tempo / 60);
+        
+        let currentMeasureIndex = Math.floor(totalBeatsElapsed / beatsPerMeasure);
+        let beatInCurrentMeasure = totalBeatsElapsed % beatsPerMeasure;
+
+        if (loopRegion) {
+          const loopDurationInBeats = (loopRegion.endMeasure - loopRegion.startMeasure + 1) * beatsPerMeasure;
+          const beatsIntoLoop = totalBeatsElapsed % loopDurationInBeats;
+          currentMeasureIndex = loopRegion.startMeasure + Math.floor(beatsIntoLoop / beatsPerMeasure);
+          beatInCurrentMeasure = beatsIntoLoop % beatsPerMeasure;
+        }
+
+        if (currentMeasureIndex >= numMeasures) {
+          setCursorPosition(null);
+          return;
+        }
+
+        const lineIndex = Math.floor(currentMeasureIndex / MEASURES_PER_LINE);
+        const measureInLine = currentMeasureIndex % MEASURES_PER_LINE;
+        const measureStartPx = layout.measureStartXs[lineIndex][measureInLine];
+        const measureWidth = layout.measureWidths[currentMeasureIndex];
+        const beatWidth = (measureWidth - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
+        
+        const newCursorX = measureStartPx + MEASURE_PADDING_HORIZONTAL + beatInCurrentMeasure * beatWidth;
+        setCursorPosition({ x: newCursorX, line: lineIndex });
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    } else {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      setCursorPosition(null);
+    }
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [isPlaying, playbackStartTime, tempo, timeSignature, loopRegion, layout, beatsPerMeasure, numMeasures]);
 
   const noteGroups = useMemo(() => {
     const voice1Notes = notes.filter(n => n.voice === 1);
@@ -224,7 +275,7 @@ export const Staff: React.FC<StaffProps> = ({
   };
   
   return (
-    <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4">
+    <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 print:overflow-visible print:shadow-none print:p-0">
         <svg
             width={layout.totalWidth}
             height={totalHeight}
@@ -348,8 +399,21 @@ export const Staff: React.FC<StaffProps> = ({
             {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
 
             {/* Playback Cursor */}
-            {isPlaying && playbackCursor && (
-                <PlaybackArrowIcon x={playbackCursor.x} y={playbackCursor.y} />
+            {cursorPosition && (
+              (() => {
+                const lineYOffset = cursorPosition.line * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+                return (
+                  <line
+                    x1={cursorPosition.x}
+                    y1={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP}
+                    x2={cursorPosition.x}
+                    y2={lineYOffset + STAFF_Y_OFFSET + 5 * STAFF_LINE_GAP}
+                    stroke="rgba(59, 130, 246, 0.7)"
+                    strokeWidth="2"
+                    className="pointer-events-none"
+                  />
+                );
+              })()
             )}
         </svg>
     </div>

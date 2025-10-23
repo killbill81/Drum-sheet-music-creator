@@ -91,7 +91,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const currentPartitionName = partitions.find(p => p.id === currentPartitionId)?.name || '';
 
   return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-200/50 dark:bg-gray-800/50 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-wrap gap-4 items-center justify-center ${className || ''}`}>
+    <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-200/50 dark:bg-gray-800/50 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-wrap gap-4 items-center justify-center ${className || ''}`}>
       {/* Partition Management */}
       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
         <select

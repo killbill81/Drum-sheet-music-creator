@@ -1,10 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Note, Tool, NoteDuration, DrumPart, TimeSignature, PlaybackCursor, LoopRegion, Partition, TextAnnotation } from './types';
+import { Note, Tool, NoteDuration, DrumPart, TimeSignature, LoopRegion, Partition, TextAnnotation } from './types';
 import { Staff, StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
 import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
-import { STAFF_X_OFFSET, CLEF_WIDTH, TIME_SIGNATURE_WIDTH, STAFF_Y_OFFSET } from './constants';
 
 const App: React.FC = () => {
   const [partitions, setPartitions] = useState<Partition[]>([]);
@@ -20,12 +19,26 @@ const App: React.FC = () => {
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackCursor, setPlaybackCursor] = useState<PlaybackCursor>(null);
+  const [playbackStartTime, setPlaybackStartTime] = useState<number | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const scheduledSourcesRef = useRef<AudioScheduledSourceNode[]>([]);
   const nextLoopTimeoutRef = useRef<number | undefined>();
   const playbackTimeoutsRef = useRef<number[]>([]);
+
+  const createNewPartition = useCallback(() => {
+    const newPartition: Partition = {
+      id: crypto.randomUUID(),
+      name: `New Score ${partitions.length + 1}`,
+      notes: [],
+      timeSignature: { top: 4, bottom: 4 },
+      tempo: 120,
+      numMeasures: 8,
+      textAnnotations: [],
+    };
+    setPartitions(prev => [...prev, newPartition]);
+    setCurrentPartitionId(newPartition.id);
+  }, [partitions.length]);
 
   useEffect(() => {
     try {
@@ -53,7 +66,7 @@ const App: React.FC = () => {
       console.error("Failed to load partitions from localStorage:", error);
       createNewPartition();
     }
-  }, []);
+  }, [createNewPartition]);
 
   useEffect(() => {
     if (partitions.length > 0) {
@@ -73,20 +86,6 @@ const App: React.FC = () => {
       )
     );
   }, [currentPartitionId]);
-
-  const createNewPartition = () => {
-    const newPartition: Partition = {
-      id: crypto.randomUUID(),
-      name: `New Score ${partitions.length + 1}`,
-      notes: [],
-      timeSignature: { top: 4, bottom: 4 },
-      tempo: 120,
-      numMeasures: 8,
-      textAnnotations: [],
-    };
-    setPartitions(prev => [...prev, newPartition]);
-    setCurrentPartitionId(newPartition.id);
-  };
 
   const handleAddLine = () => {
     if (!currentPartition) return;
@@ -121,7 +120,7 @@ const App: React.FC = () => {
 
   const stopPlayback = useCallback(() => {
     setIsPlaying(false);
-    setPlaybackCursor(null);
+    setPlaybackStartTime(null);
     if (nextLoopTimeoutRef.current) {
       clearTimeout(nextLoopTimeoutRef.current);
       nextLoopTimeoutRef.current = undefined;
@@ -283,10 +282,9 @@ const App: React.FC = () => {
     const context = initializeAudio();
     audioContextRef.current = context;
     setIsPlaying(true);
+    setPlaybackStartTime(performance.now());
 
-    const performanceStartTime = performance.now();
     const audioStartTime = context.currentTime + 0.1;
-    const clockDelta = performanceStartTime - (audioStartTime * 1000);
 
     scheduledSourcesRef.current = [];
     playbackTimeoutsRef.current = [];
@@ -298,42 +296,16 @@ const App: React.FC = () => {
       const secondsPerBeat = 60 / tempo * (4 / timeSignature.bottom);
       const beatsPerMeasure = timeSignature.top;
       const startMeasure = loopRegion ? loopRegion.startMeasure : 0;
-      const currentLoopTimeouts: number[] = [];
 
-      const notesByTime: { [key: string]: Note[] } = {};
       notesToPlay.forEach(note => {
-        const timeKey = `${note.measure}-${note.beat}`;
-        if (!notesByTime[timeKey]) notesByTime[timeKey] = [];
-        notesByTime[timeKey].push(note);
-      });
-
-      Object.values(notesByTime).forEach(chord => {
-        const firstNote = chord[0];
-        const noteBeatRelativeToStart = (firstNote.measure - startMeasure) * beatsPerMeasure + firstNote.beat;
+        const noteBeatRelativeToStart = (note.measure - startMeasure) * beatsPerMeasure + note.beat;
         const noteTimeInSeconds = noteBeatRelativeToStart * secondsPerBeat;
         const scheduledAudioTime = loopAudioStartTime + noteTimeInSeconds;
 
         if (scheduledAudioTime > context.currentTime) {
-          chord.forEach(note => {
-            const source = playSoundForPart(context, note.part, scheduledAudioTime);
-            if (source) scheduledSourcesRef.current.push(...(Array.isArray(source) ? source : [source]));
-          });
+          const source = playSoundForPart(context, note.part, scheduledAudioTime);
+          if (source) scheduledSourcesRef.current.push(...(Array.isArray(source) ? source : [source]));
         }
-
-        const scheduledPerformanceTime = (scheduledAudioTime * 1000) + clockDelta;
-        const delay = Math.max(0, scheduledPerformanceTime - performance.now());
-
-        const timeoutId = setTimeout(() => {
-          const lineIndex = Math.floor(firstNote.measure / MEASURES_PER_LINE);
-          const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-          const measuresStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-          const beatWidth = (layout.measureWidths[firstNote.measure] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
-          const x = layout.measureStartXs[lineIndex][firstNote.measure % MEASURES_PER_LINE] + MEASURE_PADDING_HORIZONTAL + firstNote.beat * beatWidth;
-          const y = lineYOffset + STAFF_Y_OFFSET - (STAFF_LINE_GAP * 2);
-          setPlaybackCursor({ x, y });
-        }, delay);
-        playbackTimeoutsRef.current.push(timeoutId);
-        currentLoopTimeouts.push(timeoutId);
       });
 
       const endMeasure = loopRegion ? loopRegion.endMeasure : numMeasures - 1;
@@ -342,17 +314,11 @@ const App: React.FC = () => {
 
       if (loopRegion) {
         const nextLoopAudioStartTime = loopAudioStartTime + totalDurationInSeconds;
-        const nextLoopPerformanceTime = (nextLoopAudioStartTime * 1000) + clockDelta;
-        const delayForNextLoop = Math.max(0, nextLoopPerformanceTime - performance.now() - 50);
-
         nextLoopTimeoutRef.current = setTimeout(() => {
-          playbackTimeoutsRef.current = playbackTimeoutsRef.current.filter(id => !currentLoopTimeouts.includes(id));
           scheduleLoop(nextLoopAudioStartTime);
-        }, delayForNextLoop);
+        }, (nextLoopAudioStartTime - context.currentTime) * 1000 - 50);
       } else {
-        const endPerformanceTime = ((loopAudioStartTime + totalDurationInSeconds) * 1000) + clockDelta;
-        const endDelay = Math.max(0, endPerformanceTime - performance.now());
-        const endTimeoutId = setTimeout(stopPlayback, endDelay);
+        const endTimeoutId = setTimeout(stopPlayback, totalDurationInSeconds * 1000);
         playbackTimeoutsRef.current.push(endTimeoutId);
       }
     };
@@ -405,16 +371,41 @@ const App: React.FC = () => {
     return <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">Loading...</div>;
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 pt-48 font-sans print:p-0 print:pt-12">
-      <style>{`
-        @media print {
-          body { background-color: #fff; }
-          .no-print { display: none; }
-          main { max-width: 100%; padding: 0; margin: 0; }
-          .print-container { width: 100%; transform: scale(0.95); transform-origin: top left; }
-        }
-      `}</style>
+    return (
+
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 pt-48 font-sans print:p-0 print:pt-12 print:bg-transparent">
+
+        <style>{`
+
+          @media print {
+
+            body { background-color: #fff; }
+
+            .no-print { display: none; }
+
+            main.print-container { 
+
+              max-width: 100%; 
+
+              padding: 0 !important; 
+
+              margin: 0 !important; 
+
+            }
+
+            .print-container {
+
+              width: 100%;
+
+              transform: scale(0.95);
+
+              transform-origin: top left;
+
+            }
+
+          }
+
+        `}</style>
       <Toolbar
         className="no-print"
         partitions={partitions}
@@ -443,7 +434,7 @@ const App: React.FC = () => {
         onLoad={handleLoad}
         onExportPdf={handleExportPdf}
       />
-      <main className="w-full max-w-7xl flex-grow flex flex-col items-center print-container">
+      <main className="w-full px-8 flex-grow flex flex-col items-center print-container">
         <h1 className="text-3xl font-bold mb-4 text-gray-800 dark:text-gray-100 no-print">{currentPartition.name}</h1>
         <p className="mb-8 text-gray-600 dark:text-gray-400 no-print">
           {copyStep === 'copy' && "Select a measure to copy."}
@@ -466,7 +457,8 @@ const App: React.FC = () => {
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}
           isPlaying={isPlaying}
-          playbackCursor={playbackCursor}
+          playbackStartTime={playbackStartTime}
+          tempo={currentPartition.tempo}
           timeSignature={currentPartition.timeSignature}
           loopRegion={loopRegion}
           loopStartMeasure={loopStartMeasure}

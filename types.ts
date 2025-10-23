@@ -53,8 +53,6 @@ export interface TimeSignature {
   bottom: number;
 }
 
-export type PlaybackCursor = { x: number; y: number } | null;
-
 export type LoopRegion = { startMeasure: number; endMeasure: number } | null;
 
 export interface Partition {
