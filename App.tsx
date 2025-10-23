@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Note, Tool, NoteDuration, DrumPart, TimeSignature, LoopRegion, Partition, TextAnnotation } from './types';
 import { Staff, StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
-import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE } from './constants';
+import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
 
 const App: React.FC = () => {
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [selectedDrumPart, setSelectedDrumPart] = useState<DrumPart>(DrumPart.SNARE);
   const [loopRegion, setLoopRegion] = useState<LoopRegion>(null);
   const [loopStartMeasure, setLoopStartMeasure] = useState<number | null>(null);
+  const [deleteStartMeasure, setDeleteStartMeasure] = useState<number | null>(null);
   
   const [copiedMeasureNotes, setCopiedMeasureNotes] = useState<Note[] | null>(null);
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
@@ -44,15 +45,7 @@ const App: React.FC = () => {
     try {
       const savedPartitions = localStorage.getItem('drum-partitions');
       if (savedPartitions) {
-        let parsedPartitions = JSON.parse(savedPartitions);
-        if (Array.isArray(parsedPartitions)) {
-          parsedPartitions = parsedPartitions.map(p => ({
-            ...p,
-            numMeasures: p.numMeasures || 16,
-            textAnnotations: p.textAnnotations || [],
-          }));
-        }
-
+        const parsedPartitions = JSON.parse(savedPartitions);
         if (Array.isArray(parsedPartitions) && parsedPartitions.length > 0) {
           setPartitions(parsedPartitions);
           setCurrentPartitionId(parsedPartitions[0].id);
@@ -110,12 +103,110 @@ const App: React.FC = () => {
     updateCurrentPartition({ name: newName });
   };
 
+  const handleDeleteLine = (lineIndex: number) => {
+    if (!currentPartition || currentPartition.numMeasures <= MEASURES_PER_LINE) {
+      alert("You cannot delete the last line.");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to delete this entire line?")) {
+      const startMeasure = lineIndex * MEASURES_PER_LINE;
+      const endMeasure = startMeasure + MEASURES_PER_LINE - 1;
+
+      const updatedNotes = currentPartition.notes
+        .filter(note => note.measure < startMeasure || note.measure > endMeasure)
+        .map(note => {
+          if (note.measure > endMeasure) {
+            return { ...note, measure: note.measure - MEASURES_PER_LINE };
+          }
+          return note;
+        });
+
+      const updatedAnnotations = currentPartition.textAnnotations
+        .filter(ann => {
+          const annLineIndex = Math.floor((ann.y - STAFF_Y_OFFSET) / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
+          return annLineIndex !== lineIndex;
+        })
+        .map(ann => {
+          const annLineIndex = Math.floor((ann.y - STAFF_Y_OFFSET) / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
+          if (annLineIndex > lineIndex) {
+            return { ...ann, y: ann.y - (STAFF_HEIGHT + STAFF_VERTICAL_GAP) };
+          }
+          return ann;
+        });
+
+      const newNumMeasures = currentPartition.numMeasures - MEASURES_PER_LINE;
+      updateCurrentPartition({
+        notes: updatedNotes,
+        textAnnotations: updatedAnnotations,
+        numMeasures: newNumMeasures
+      });
+    }
+  };
+
+  const handleDeleteMeasureRange = (start: number, end: number) => {
+    if (!currentPartition) return;
+    if (window.confirm(`Are you sure you want to delete measures ${start + 1} through ${end + 1}?`)) {
+      const measuresToDelete = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      const updatedNotes = currentPartition.notes
+        .filter(note => !measuresToDelete.includes(note.measure))
+        .map(note => {
+          if (note.measure > end) {
+            return { ...note, measure: note.measure - measuresToDelete.length };
+          }
+          return note;
+        });
+
+      const updatedAnnotations = currentPartition.textAnnotations.filter(ann => {
+        const annLineIndex = Math.floor((ann.y - STAFF_Y_OFFSET) / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
+        const annMeasureInLine = Math.floor(ann.x / 250); // Approximate
+        const annMeasureIndex = annLineIndex * MEASURES_PER_LINE + annMeasureInLine;
+        return !measuresToDelete.includes(annMeasureIndex);
+      });
+
+      const newNumMeasures = currentPartition.numMeasures - measuresToDelete.length;
+      updateCurrentPartition({
+        notes: updatedNotes,
+        textAnnotations: updatedAnnotations,
+        numMeasures: newNumMeasures
+      });
+    }
+  };
+
   const handleUpdateTextAnnotation = (id: string, x: number, y: number) => {
     if (!currentPartition) return;
     const newAnnotations = currentPartition.textAnnotations.map(ann => 
       ann.id === id ? { ...ann, x, y } : ann
     );
     updateCurrentPartition({ textAnnotations: newAnnotations });
+  };
+
+  const handleInsertLine = (afterLineIndex: number) => {
+    if (!currentPartition) return;
+
+    const measuresToShiftFrom = (afterLineIndex + 1) * MEASURES_PER_LINE;
+
+    const updatedNotes = currentPartition.notes.map(note => {
+      if (note.measure >= measuresToShiftFrom) {
+        return { ...note, measure: note.measure + MEASURES_PER_LINE };
+      }
+      return note;
+    });
+
+    const updatedAnnotations = currentPartition.textAnnotations.map(ann => {
+      const annLineIndex = Math.floor((ann.y - STAFF_Y_OFFSET) / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
+      if (annLineIndex > afterLineIndex) {
+        return { ...ann, y: ann.y + STAFF_HEIGHT + STAFF_VERTICAL_GAP };
+      }
+      return ann;
+    });
+
+    const newNumMeasures = currentPartition.numMeasures + MEASURES_PER_LINE;
+    updateCurrentPartition({
+      notes: updatedNotes,
+      textAnnotations: updatedAnnotations,
+      numMeasures: newNumMeasures
+    });
   };
 
   const stopPlayback = useCallback(() => {
@@ -144,6 +235,13 @@ const App: React.FC = () => {
       updateCurrentPartition({ notes: newNotes });
     }
   }, [selectedTool, currentPartition, updateCurrentPartition]);
+
+  const handleAnnotationClick = (annotationId: string) => {
+    if (selectedTool === Tool.ERASER && currentPartition) {
+      const newAnnotations = currentPartition.textAnnotations.filter(ann => ann.id !== annotationId);
+      updateCurrentPartition({ textAnnotations: newAnnotations });
+    }
+  };
 
   const handleStaffClick = (info: StaffClickInfo) => {
     if (!currentPartition) return;
@@ -224,12 +322,20 @@ const App: React.FC = () => {
     if (tool === Tool.COPY) {
       setSelectedTool(Tool.COPY);
       setCopyStep('copy');
-      setLoopRegion(null); // Disable other modes
+      setLoopRegion(null);
+      setLoopStartMeasure(null);
+      setDeleteStartMeasure(null);
+    } else if (tool === Tool.DELETE) {
+      setSelectedTool(Tool.DELETE);
+      setCopyStep(null);
+      setCopiedMeasureNotes(null);
+      setLoopRegion(null);
       setLoopStartMeasure(null);
     } else {
       setSelectedTool(tool);
       setCopyStep(null);
       setCopiedMeasureNotes(null);
+      setDeleteStartMeasure(null);
     }
   };
 
@@ -261,6 +367,15 @@ const App: React.FC = () => {
         setCopyStep(null);
         setCopiedMeasureNotes(null);
         setSelectedTool(Tool.PEN);
+      }
+    } else if (selectedTool === Tool.DELETE) {
+      if (deleteStartMeasure === null) {
+        setDeleteStartMeasure(measureIndex);
+      } else {
+        const start = Math.min(deleteStartMeasure, measureIndex);
+        const end = Math.max(deleteStartMeasure, measureIndex);
+        handleDeleteMeasureRange(start, end);
+        setDeleteStartMeasure(null);
       }
     }
   };
@@ -326,7 +441,7 @@ const App: React.FC = () => {
     scheduleLoop(audioStartTime);
   }, [currentPartition, loopRegion, isPlaying, stopPlayback]);
 
-  const handleSave = () => {
+  const handleExport = () => {
     const jsonString = JSON.stringify(partitions, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -339,7 +454,7 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -371,41 +486,24 @@ const App: React.FC = () => {
     return <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">Loading...</div>;
   }
 
-    return (
-
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 pt-48 font-sans print:p-0 print:pt-12 print:bg-transparent">
-
-        <style>{`
-
-          @media print {
-
-            body { background-color: #fff; }
-
-            .no-print { display: none; }
-
-            main.print-container { 
-
-              max-width: 100%; 
-
-              padding: 0 !important; 
-
-              margin: 0 !important; 
-
-            }
-
-            .print-container {
-
-              width: 100%;
-
-              transform: scale(0.95);
-
-              transform-origin: top left;
-
-            }
-
+  return (
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 pt-48 font-sans print:p-0 print:pt-12 print:bg-transparent">
+      <style>{`
+        @media print {
+          body { background-color: #fff; }
+          .no-print { display: none; }
+          main.print-container { 
+            max-width: 100%; 
+            padding: 0 !important; 
+            margin: 0 !important; 
           }
-
-        `}</style>
+          .print-container {
+            width: 100%;
+            transform: scale(0.95);
+            transform-origin: top left;
+          }
+        }
+      `}</style>
       <Toolbar
         className="no-print"
         partitions={partitions}
@@ -430,8 +528,8 @@ const App: React.FC = () => {
         onTimeSignatureChange={handleTimeSignatureChange}
         loopRegion={loopRegion}
         onLoopButtonClick={handleLoopButtonClick}
-        onSave={handleSave}
-        onLoad={handleLoad}
+        onSave={handleExport} // Renamed for clarity
+        onLoad={handleImport}   // Renamed for clarity
         onExportPdf={handleExportPdf}
       />
       <main className="w-full px-8 flex-grow flex flex-col items-center print-container">
@@ -440,8 +538,10 @@ const App: React.FC = () => {
           {copyStep === 'copy' && "Select a measure to copy."}
           {copyStep === 'paste' && "Select a measure to paste to."}
           {selectedTool === Tool.TEXT && "Click on the score to add text."}
-          {copyStep === null && selectedTool !== Tool.TEXT && loopRegion && "Playing looped section."}
-          {copyStep === null && selectedTool !== Tool.TEXT && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}
+          {selectedTool === Tool.DELETE && deleteStartMeasure === null && "Click a measure to start deleting."}
+          {selectedTool === Tool.DELETE && deleteStartMeasure !== null && `First measure selected (${deleteStartMeasure + 1}). Click another measure to end deletion.`}
+          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && loopRegion && "Playing looped section."}
+          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}
           {selectedTool === Tool.LOOP && !loopStartMeasure && " Click a measure to start a loop."}
           {selectedTool === Tool.LOOP && loopStartMeasure !== null && ` First measure selected (${loopStartMeasure + 1}). Click another measure to end the loop.`}
         </p>
@@ -451,8 +551,11 @@ const App: React.FC = () => {
           textAnnotations={currentPartition.textAnnotations}
           onStaffClick={handleStaffClick}
           onNoteClick={handleNoteClick}
+          onAnnotationClick={handleAnnotationClick}
           onMeasureClick={handleMeasureClick}
           onUpdateTextAnnotation={handleUpdateTextAnnotation}
+          onInsertLine={handleInsertLine}
+          onDeleteLine={handleDeleteLine}
           selectedTool={selectedTool}
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}
@@ -462,6 +565,7 @@ const App: React.FC = () => {
           timeSignature={currentPartition.timeSignature}
           loopRegion={loopRegion}
           loopStartMeasure={loopStartMeasure}
+          deleteStartMeasure={deleteStartMeasure}
         />
       </main>
     </div>

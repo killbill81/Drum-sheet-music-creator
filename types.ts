@@ -26,7 +26,7 @@ export enum Tool {
   ERASER = 'eraser',
   LOOP = 'loop',
   COPY = 'copy',
-  TEXT = 'text',
+  DELETE = 'delete',
 }
 
 export interface TextAnnotation {

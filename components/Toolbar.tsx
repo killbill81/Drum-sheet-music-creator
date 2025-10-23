@@ -11,7 +11,6 @@ interface ToolbarProps {
   onCreatePartition: () => void;
   onDeletePartition: (id: string) => void;
   onRenamePartition: (name: string) => void;
-  onAddLine: () => void;
   selectedTool: Tool;
   setSelectedTool: (tool: Tool) => void;
   selectedDuration: NoteDuration;
@@ -46,7 +45,7 @@ const ToolIcons: Record<Tool, React.ReactNode> = {
     [Tool.ERASER]: <EraserIcon />,
     [Tool.LOOP]: <LoopIcon />,
     [Tool.COPY]: <CopyIcon />,
-    [Tool.TEXT]: <TextIcon />,
+    [Tool.DELETE]: <TrashIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
@@ -91,7 +90,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const currentPartitionName = partitions.find(p => p.id === currentPartitionId)?.name || '';
 
   return (
-    <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-200/50 dark:bg-gray-800/50 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-wrap gap-4 items-center justify-center ${className || ''}`}>
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-200/50 dark:bg-gray-800/50 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-wrap gap-4 items-center justify-center ${className || ''}`}>
       {/* Partition Management */}
       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
         <select
@@ -114,9 +113,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
         <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Partition">
           <TrashIcon />
-        </button>
-        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line">
-          <AddLineIcon />
         </button>
       </div>
 
@@ -189,10 +185,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2">
-        <button onClick={onSave} className={getButtonClass(false)} title="Save All Scores">
+        <button onClick={onSave} className={getButtonClass(false)} title="Export Scores">
           <SaveIcon />
         </button>
-        <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Load Scores">
+        <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Import Scores">
           <LoadIcon />
         </button>
         <input type="file" accept=".json" onChange={onLoad} ref={loadInputRef} className="hidden" />

@@ -7,7 +7,7 @@ import {
   MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
 } from '../constants';
 import { Note } from './Note';
-import { PercussionClef } from './Icons';
+import { PercussionClef, PlusIcon, TrashIcon } from './Icons';
 import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 
 export interface StaffClickInfo {
@@ -23,8 +23,11 @@ interface StaffProps {
   textAnnotations: TextAnnotation[];
   onStaffClick: (info: StaffClickInfo) => void;
   onNoteClick: (noteId: string) => void;
+  onAnnotationClick: (annotationId: string) => void;
   onMeasureClick: (measureIndex: number) => void;
   onUpdateTextAnnotation: (id: string, x: number, y: number) => void;
+  onInsertLine: (afterLineIndex: number) => void;
+  onDeleteLine: (lineIndex: number) => void;
   selectedTool: Tool;
   selectedDrumPart: DrumPart;
   selectedDuration: NoteDuration;
@@ -34,6 +37,7 @@ interface StaffProps {
   timeSignature: TimeSignature;
   loopRegion: LoopRegion;
   loopStartMeasure: number | null;
+  deleteStartMeasure: number | null;
 }
 
 const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
@@ -67,13 +71,14 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
 }
 
 export const Staff: React.FC<StaffProps> = ({
-  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onMeasureClick, onUpdateTextAnnotation, selectedTool, selectedDrumPart, selectedDuration,
-  isPlaying, playbackStartTime, tempo, timeSignature, loopRegion, loopStartMeasure
+  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onInsertLine, onDeleteLine, selectedTool, selectedDrumPart, selectedDuration,
+  isPlaying, playbackStartTime, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure
 }) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [cursorPosition, setCursorPosition] = useState<{ x: number; line: number } | null>(null);
+  const [hoveredGapIndex, setHoveredGapIndex] = useState<number | null>(null);
   const animationFrameRef = useRef<number>();
 
   const beatsPerMeasure = timeSignature.top;
@@ -223,7 +228,7 @@ export const Staff: React.FC<StaffProps> = ({
 
     if (isPlaying) return;
 
-    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY || selectedTool === Tool.TEXT) {
+    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY || selectedTool === Tool.TEXT || selectedTool === Tool.DELETE) {
       setHoverPosition(null);
       setHoverMeasure(pos.measureIndex !== -1 ? pos.measureIndex : null);
     } else {
@@ -258,7 +263,7 @@ export const Staff: React.FC<StaffProps> = ({
     const pos = getPositionFromMouseEvent(e);
     if(pos.measureIndex === -1) return;
 
-    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY) {
+    if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY || selectedTool === Tool.DELETE) {
       onMeasureClick(pos.measureIndex);
     } else {
       const beatInMeasure = (pos.paddedXInMeasure / pos.noteAreaWidth) * beatsPerMeasure;
@@ -290,7 +295,7 @@ export const Staff: React.FC<StaffProps> = ({
             const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < numMeasures);
 
             return (
-              <g key={`line-${lineIndex}`}>
+              <g key={`line-group-${lineIndex}`}>
                 {/* Staff lines */}
                 {Array.from({ length: 5 }).map((_, i) => (
                     <line
@@ -339,21 +344,92 @@ export const Staff: React.FC<StaffProps> = ({
                     })}
                   </g>
                 )}
+
+                {/* Insert Line UI */}
+                {lineIndex < numLines - 1 && (
+                  <g 
+                    onMouseEnter={() => setHoveredGapIndex(lineIndex)}
+                    onMouseLeave={() => setHoveredGapIndex(null)}
+                  >
+                    <rect 
+                      x={STAFF_X_OFFSET} 
+                      y={lineYOffset + STAFF_HEIGHT}
+                      width={layout.totalWidth - STAFF_X_OFFSET * 2}
+                      height={STAFF_VERTICAL_GAP}
+                      fill="transparent"
+                    />
+                    {hoveredGapIndex === lineIndex && (
+                      <g 
+                        className="cursor-pointer" 
+                        onClick={() => onInsertLine(lineIndex)}
+                      >
+                        <rect 
+                          x={layout.totalWidth / 2 - 100}
+                          y={lineYOffset + STAFF_HEIGHT + STAFF_VERTICAL_GAP / 2 - 15}
+                          width={200}
+                          height={30}
+                          rx={8}
+                          fill="rgba(59, 130, 246, 0.8)"
+                        />
+                        <text 
+                          x={layout.totalWidth / 2} 
+                          y={lineYOffset + STAFF_HEIGHT + STAFF_VERTICAL_GAP / 2}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill="white"
+                          className="font-sans font-semibold pointer-events-none"
+                        >
+                          [ + ] Insert new line here
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                )}
+
+                {/* Delete Line Button */}
+                <g 
+                  className="cursor-pointer opacity-20 hover:opacity-100 transition-opacity"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onDeleteLine(lineIndex); 
+                  }}
+                >
+                  <TrashIcon x={layout.lineTotalWidths[lineIndex] + 10} y={lineYOffset + STAFF_Y_OFFSET + STAFF_LINE_GAP * 1.5} />
+                </g>
               </g>
             );
           })}
 
             {/* Hover effect for measure selection */}
-            {(hoverMeasure !== null || loopStartMeasure !== null) &&
-              [hoverMeasure, loopStartMeasure].filter(m => m !== null).map(m => {
-                const measureIndex = m as number;
+            {hoverMeasure !== null && (
+              (() => {
+                const measureIndex = hoverMeasure;
                 const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
                 const measureInLine = measureIndex % MEASURES_PER_LINE;
                 const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
                 const x = layout.measureStartXs[lineIndex][measureInLine];
-                return <rect key={`hover-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.2)" className="pointer-events-none" />
-              })
-            }
+                
+                let fillColor = "rgba(37, 99, 235, 0.2)"; // Default blue
+                if (selectedTool === Tool.DELETE) {
+                  fillColor = "rgba(239, 68, 68, 0.4)"; // Red for delete
+                }
+
+                return <rect key={`hover-${measureIndex}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill={fillColor} className="pointer-events-none" />
+              })()
+            )}
+            {(loopStartMeasure !== null || deleteStartMeasure !== null) && (
+                 (() => {
+                    const startMeasure = loopStartMeasure ?? deleteStartMeasure;
+                    if (startMeasure === null) return null;
+                    const measureIndex = startMeasure;
+                    const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
+                    const measureInLine = measureIndex % MEASURES_PER_LINE;
+                    const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+                    const x = layout.measureStartXs[lineIndex][measureInLine];
+                    const fillColor = selectedTool === Tool.DELETE ? "rgba(239, 68, 68, 0.5)" : "rgba(37, 99, 235, 0.3)";
+                    return <rect key={`start-highlight`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill={fillColor} className="pointer-events-none" />
+                 })()
+            )}
 
             {/* Render Notes */}
             {noteGroups.map((group, index) => {
@@ -390,6 +466,7 @@ export const Staff: React.FC<StaffProps> = ({
                 fontSize="16" 
                 textAnchor="middle"
                 onMouseDown={(e) => handleTextMouseDown(e, annotation)}
+                onClick={() => onAnnotationClick(annotation.id)}
                 className="cursor-grab active:cursor-grabbing"
               >
                 {annotation.text}

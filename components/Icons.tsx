@@ -43,6 +43,16 @@ export const SixteenthNoteIcon = () => (
   </svg>
 );
 
+export const ThirtySecondNoteIcon = () => (
+  <svg viewBox="0 0 30 50" className="h-6 w-auto">
+    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
+    <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <path d="M 15 16 Q 25 21, 15 31" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <path d="M 15 22 Q 25 27, 15 37" stroke="currentColor" strokeWidth="2.5" fill="none" />
+  </svg>
+);
+
 export const PercussionClef = ({ x, y }: { x: number; y: number }) => (
   <g transform={`translate(${x}, ${y}) scale(0.8)`}>
     <rect x="5" y="12" width="4" height="40" fill="currentColor" />
@@ -88,12 +98,6 @@ export const PdfIcon = () => (
   </svg>
 );
 
-export const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-);
-
 export const PlusIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -106,26 +110,10 @@ export const CopyIcon = () => (
   </svg>
 );
 
-export const ThirtySecondNoteIcon = () => (
-  <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
-    <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
-    <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
-    <path d="M 15 16 Q 25 21, 15 31" stroke="currentColor" strokeWidth="2.5" fill="none" />
-    <path d="M 15 22 Q 25 27, 15 37" stroke="currentColor" strokeWidth="2.5" fill="none" />
-  </svg>
+export const TrashIcon = ({ x, y }: { x: number; y: number }) => (
+  <g transform={`translate(${x}, ${y})`}>
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  </g>
 );
-
-export const AddLineIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-  </svg>
-);
-
-export const TextIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V4h16v3M9 20h6M12 4v16" />
-  </svg>
-);
-
-

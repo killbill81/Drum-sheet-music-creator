@@ -79,7 +79,7 @@ export const TOOLBAR_TOOLS = [
   { id: Tool.ERASER, label: 'Eraser' },
   { id: Tool.LOOP, label: 'Loop' },
   { id: Tool.COPY, label: 'Copy' },
-  { id: Tool.TEXT, label: 'Text' },
+  { id: Tool.DELETE, label: 'Delete Measure' },
 ];
 
 export const TOOLBAR_DURATIONS = [

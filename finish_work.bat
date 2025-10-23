@@ -25,7 +25,7 @@ git commit -m "%commit_message%"
 echo.
 
 echo --- Etape 4: Push vers GitHub ---
-git push origin master
+git push origin main
 echo.
 
 echo Tache terminee. Appuyez sur une touche pour fermer.
