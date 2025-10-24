@@ -73,7 +73,7 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
   return groups;
 }
 
-export const Staff: React.FC<StaffProps> = ({
+const Staff: React.FC<StaffProps> = ({
   notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onInsertLine, onDeleteLine,
   selectedTool, selectedDrumPart, selectedDuration, isPlaying, playbackCursor, playbackProgress, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure
 }) => {
@@ -350,3 +350,5 @@ export const Staff: React.FC<StaffProps> = ({
     </div>
   );
 };
+
+export default Staff;

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Note, Tool, NoteDuration, DrumPart, TimeSignature, PlaybackCursor, LoopRegion, Partition, Articulation, TextAnnotation } from './types';
-import { Staff, StaffClickInfo } from './components/Staff';
+import Staff, { StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
 import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, DURATION_TO_INTEGER_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
