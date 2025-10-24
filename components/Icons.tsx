@@ -74,6 +74,12 @@ export const StopIcon = () => (
   </svg>
 );
 
+export const PlaybackArrowIcon = ({ x, y }: { x: number; y: number }) => (
+    <svg x={x - 8} y={y - 16} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-blue-500">
+        <path d="M12 21l-12-18h24z"/>
+    </svg>
+);
+
 export const SaveIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3l-4-4-4 4z" />
@@ -98,9 +104,15 @@ export const PdfIcon = () => (
   </svg>
 );
 
+export const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 7h14m-4 0V4a2 2 0 00-2-2H9a2 2 0 00-2 2v3m4 4v6m-4-6v6m1-12l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7" />
+  </svg>
+);
+
 export const PlusIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 12h12m-6-6v12" />
   </svg>
 );
 
@@ -110,10 +122,34 @@ export const CopyIcon = () => (
   </svg>
 );
 
-export const TrashIcon = ({ x, y }: { x: number; y: number }) => (
-  <g transform={`translate(${x}, ${y})`}>
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  </g>
+export const FlamIcon = () => (
+  <svg viewBox="0 0 30 50" className="h-6 w-auto">
+    <circle cx="18" cy="45" r="5" fill="currentColor"/>
+    <line x1="23" y1="45" x2="23" y2="10" stroke="currentColor" strokeWidth="2" />
+    <circle cx="8" cy="38" r="3" fill="currentColor" />
+    <line x1="11" y1="38" x2="11" y2="20" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="8" y1="28" x2="14" y2="24" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+
+export const BuzzRollIcon = () => (
+  <svg viewBox="0 0 30 50" className="h-6 w-auto">
+    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
+    <line x1="12" y1="25" x2="18" y2="28" stroke="currentColor" strokeWidth="2" />
+    <line x1="12" y1="28" x2="18" y2="31" stroke="currentColor" strokeWidth="2" />
+  </svg>
+);
+
+export const DeleteIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    <line x1="10" y1="11" x2="14" y2="11" strokeWidth="2" />
+  </svg>
+);
+
+export const AddLineIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+  </svg>
 );

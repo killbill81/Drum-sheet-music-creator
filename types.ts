@@ -38,6 +38,12 @@ export interface TextAnnotation {
 
 export type NoteHeadType = 'x' | 'normal' | 'open_x';
 
+export enum Articulation {
+  NONE = 'none',
+  FLAM = 'flam',
+  BUZZ_ROLL = 'buzz_roll',
+}
+
 export interface Note {
   id: string;
   part: DrumPart;
@@ -45,7 +51,8 @@ export interface Note {
   beat: number;
   measure: number;
   stemDirection: 'up' | 'down';
-  voice: 1 | 2;
+  voice: 1 | 2 | 3;
+  articulation?: Articulation;
 }
 
 export interface TimeSignature {

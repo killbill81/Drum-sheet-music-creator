@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Note, Tool, NoteDuration, DrumPart, TimeSignature, LoopRegion, Partition, TextAnnotation } from './types';
+import { Note, Tool, NoteDuration, DrumPart, TimeSignature, PlaybackCursor, LoopRegion, Partition, Articulation, TextAnnotation } from './types';
 import { Staff, StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
-import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, NOTE_TYPE_TO_FRACTIONAL_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
+import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, DURATION_TO_INTEGER_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
 
 const App: React.FC = () => {
@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<Tool>(Tool.PEN);
   const [selectedDuration, setSelectedDuration] = useState<NoteDuration>(NoteDuration.QUARTER);
   const [selectedDrumPart, setSelectedDrumPart] = useState<DrumPart>(DrumPart.SNARE);
+  const [selectedArticulation, setSelectedArticulation] = useState<Articulation>(Articulation.NONE);
   const [loopRegion, setLoopRegion] = useState<LoopRegion>(null);
   const [loopStartMeasure, setLoopStartMeasure] = useState<number | null>(null);
   const [deleteStartMeasure, setDeleteStartMeasure] = useState<number | null>(null);
@@ -20,12 +21,13 @@ const App: React.FC = () => {
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackStartTime, setPlaybackStartTime] = useState<number | null>(null);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const scheduledSourcesRef = useRef<AudioScheduledSourceNode[]>([]);
-  const nextLoopTimeoutRef = useRef<number | undefined>();
-  const playbackTimeoutsRef = useRef<number[]>([]);
+  const animationFrameRef = useRef<number>();
+  const playbackStartTimeRef = useRef<number>(0);
+  const pauseTimeRef = useRef<number>(0);
 
   const createNewPartition = useCallback(() => {
     const newPartition: Partition = {
@@ -211,18 +213,23 @@ const App: React.FC = () => {
 
   const stopPlayback = useCallback(() => {
     setIsPlaying(false);
-    setPlaybackStartTime(null);
-    if (nextLoopTimeoutRef.current) {
-      clearTimeout(nextLoopTimeoutRef.current);
-      nextLoopTimeoutRef.current = undefined;
+    setPlaybackProgress(0);
+    pauseTimeRef.current = 0;
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
-    playbackTimeoutsRef.current.forEach(clearTimeout);
-    playbackTimeoutsRef.current = [];
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-    }
-    audioContextRef.current = null;
+
+    scheduledSourcesRef.current.forEach(source => {
+      try {
+        source.stop(0);
+      } catch (e) {}
+    });
     scheduledSourcesRef.current = [];
+
+    if (audioContextRef.current && audioContextRef.current.state === 'running') {
+      audioContextRef.current.suspend();
+    }
   }, []);
 
   useEffect(() => {
@@ -252,13 +259,14 @@ const App: React.FC = () => {
       if (noteToReplace && noteToReplace.duration === selectedDuration) return;
 
       const voice = DRUM_PART_VOICE[selectedDrumPart];
-      const measureCapacity = timeSignature.top / timeSignature.bottom;
-      const newNoteValue = NOTE_TYPE_TO_FRACTIONAL_VALUE[selectedDuration];
-      const valueOfOtherNotes = notes
-        .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
-        .reduce((sum, note) => sum + NOTE_TYPE_TO_FRACTIONAL_VALUE[note.duration], 0);
-
-      if (valueOfOtherNotes + newNoteValue > measureCapacity + 1e-6) {
+            const measureCapacity = (timeSignature.top / timeSignature.bottom) * 96; // 96 is the integer value for a whole note
+            const newNoteValue = DURATION_TO_INTEGER_VALUE[selectedDuration];
+      
+            const valueOfOtherNotes = notes
+              .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
+              .reduce((sum, note) => sum + DURATION_TO_INTEGER_VALUE[note.duration], 0);
+      
+            if (valueOfOtherNotes + newNoteValue > measureCapacity) {
         console.warn(`Cannot add note: exceeds measure capacity for voice ${voice}.`);
         return;
       }
@@ -271,6 +279,7 @@ const App: React.FC = () => {
         measure: info.measureIndex,
         stemDirection: voice === 1 ? 'up' : 'down',
         voice,
+        articulation: selectedArticulation !== Articulation.NONE ? selectedArticulation : undefined,
       };
 
       const notesWithoutReplaced = noteToReplace ? notes.filter(n => n.id !== noteToReplace.id) : notes;
@@ -380,66 +389,87 @@ const App: React.FC = () => {
     }
   };
 
-  const handlePlay = useCallback(() => {
+  const handlePlay = useCallback((startTime = 0) => {
     if (!currentPartition) return;
+
     if (isPlaying) {
-      stopPlayback();
+      pauseTimeRef.current = audioContextRef.current!.currentTime - playbackStartTimeRef.current;
+      audioContextRef.current?.suspend();
+      setIsPlaying(false);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       return;
     }
 
     const { notes, tempo, timeSignature, numMeasures } = currentPartition;
-    const notesToPlay = loopRegion
-      ? notes.filter(n => n.measure >= loopRegion.startMeasure && n.measure <= loopRegion.endMeasure)
-      : notes;
-
-    if (notesToPlay.length === 0) return;
-
     const context = initializeAudio();
     audioContextRef.current = context;
+
+    if (context.state === 'suspended') {
+      context.resume();
+    }
+
+    const notesToPlay = notes;
+    if (notesToPlay.length === 0 && !loopRegion) {
+        stopPlayback();
+        return;
+    }
+
     setIsPlaying(true);
-    setPlaybackStartTime(performance.now());
+    const audioContextStartTime = context.currentTime;
+    const playbackOffset = pauseTimeRef.current;
+    playbackStartTimeRef.current = audioContextStartTime - playbackOffset;
+    pauseTimeRef.current = 0;
 
-    const audioStartTime = context.currentTime + 0.1;
-
+    scheduledSourcesRef.current.forEach(source => { try { source.stop(0); } catch(e) {} });
     scheduledSourcesRef.current = [];
-    playbackTimeoutsRef.current = [];
 
-    const scheduleLoop = (loopAudioStartTime: number) => {
-      scheduledSourcesRef.current.forEach(source => { try { source.stop(0); } catch (e) { /* Ignore */ } });
-      scheduledSourcesRef.current = [];
+    const secondsPerBeat = 60 / tempo;
+    const beatsPerMeasure = timeSignature.top * (4 / timeSignature.bottom);
 
-      const secondsPerBeat = 60 / tempo * (4 / timeSignature.bottom);
-      const beatsPerMeasure = timeSignature.top;
-      const startMeasure = loopRegion ? loopRegion.startMeasure : 0;
+    notesToPlay.forEach(note => {
+      if (note.measure * beatsPerMeasure + note.beat >= playbackOffset / secondsPerBeat) {
+        const scheduledAudioTime = playbackStartTimeRef.current + (note.measure * beatsPerMeasure + note.beat) * secondsPerBeat;
+        const source = playSoundForPart(context, note.part, scheduledAudioTime, note.duration, tempo, note.articulation);
+        if (source) scheduledSourcesRef.current.push(...(Array.isArray(source) ? source : [source]));
+      }
+    });
 
-      notesToPlay.forEach(note => {
-        const noteBeatRelativeToStart = (note.measure - startMeasure) * beatsPerMeasure + note.beat;
-        const noteTimeInSeconds = noteBeatRelativeToStart * secondsPerBeat;
-        const scheduledAudioTime = loopAudioStartTime + noteTimeInSeconds;
+    const animate = () => {
+      const elapsedTime = context.currentTime - playbackStartTimeRef.current;
+      const totalBeats = numMeasures * beatsPerMeasure;
+      const totalDuration = totalBeats * secondsPerBeat;
 
-        if (scheduledAudioTime > context.currentTime) {
-          const source = playSoundForPart(context, note.part, scheduledAudioTime);
-          if (source) scheduledSourcesRef.current.push(...(Array.isArray(source) ? source : [source]));
-        }
-      });
-
-      const endMeasure = loopRegion ? loopRegion.endMeasure : numMeasures - 1;
-      const totalDurationInBeats = (endMeasure - startMeasure + 1) * beatsPerMeasure;
-      const totalDurationInSeconds = totalDurationInBeats * secondsPerBeat;
+      let currentProgress = (elapsedTime % totalDuration) / totalDuration;
 
       if (loopRegion) {
-        const nextLoopAudioStartTime = loopAudioStartTime + totalDurationInSeconds;
-        nextLoopTimeoutRef.current = setTimeout(() => {
-          scheduleLoop(nextLoopAudioStartTime);
-        }, (nextLoopAudioStartTime - context.currentTime) * 1000 - 50);
+        const loopStartBeat = loopRegion.startMeasure * beatsPerMeasure;
+        const loopEndBeat = (loopRegion.endMeasure + 1) * beatsPerMeasure;
+        const loopDuration = (loopEndBeat - loopStartBeat) * secondsPerBeat;
+        const loopStartTime = loopStartBeat * secondsPerBeat;
+
+        if (elapsedTime >= loopStartTime) {
+            const timeInLoop = elapsedTime - loopStartTime;
+            const currentProgressInLoop = (timeInLoop % loopDuration) / loopDuration;
+            currentProgress = (loopStartBeat * secondsPerBeat + currentProgressInLoop * loopDuration) / totalDuration;
+        } else {
+            currentProgress = elapsedTime / totalDuration;
+        }
+      }
+
+      setPlaybackProgress(currentProgress);
+
+      if (elapsedTime >= totalDuration && !loopRegion) {
+        stopPlayback();
       } else {
-        const endTimeoutId = setTimeout(stopPlayback, totalDurationInSeconds * 1000);
-        playbackTimeoutsRef.current.push(endTimeoutId);
+        animationFrameRef.current = requestAnimationFrame(animate);
       }
     };
 
-    scheduleLoop(audioStartTime);
-  }, [currentPartition, loopRegion, isPlaying, stopPlayback]);
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+  }, [currentPartition, isPlaying, stopPlayback, loopRegion]);
 
   const handleExport = () => {
     const jsonString = JSON.stringify(partitions, null, 2);
@@ -490,17 +520,31 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 pt-48 font-sans print:p-0 print:pt-12 print:bg-transparent">
       <style>{`
         @media print {
-          body { background-color: #fff; }
-          .no-print { display: none; }
-          main.print-container { 
-            max-width: 100%; 
-            padding: 0 !important; 
-            margin: 0 !important; 
+          body {
+            background-color: #fff;
+            margin: 0;
+            padding: 0;
           }
-          .print-container {
+          .no-print {
+            display: none;
+          }
+          main.print-container {
+            max-width: 100%;
+            padding: 0 !important;
+            margin: 0 !important;
             width: 100%;
-            transform: scale(0.95);
-            transform-origin: top left;
+            box-sizing: border-box;
+            page-break-after: always;
+          }
+          .print-container:last-child {
+            page-break-after: avoid;
+          }
+          .staff-line-group {
+            page-break-inside: avoid;
+          }
+          svg {
+            width: 100%;
+            height: auto;
           }
         }
       `}</style>
@@ -517,6 +561,8 @@ const App: React.FC = () => {
         setSelectedTool={handleToolSelect}
         selectedDuration={selectedDuration}
         setSelectedDuration={setSelectedDuration}
+        selectedArticulation={selectedArticulation}
+        setSelectedArticulation={setSelectedArticulation}
         selectedDrumPart={selectedDrumPart}
         setSelectedDrumPart={setSelectedDrumPart}
         isPlaying={isPlaying}
@@ -560,7 +606,8 @@ const App: React.FC = () => {
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}
           isPlaying={isPlaying}
-          playbackStartTime={playbackStartTime}
+          playbackProgress={playbackProgress}
+          onPlayFromPosition={handlePlay}
           tempo={currentPartition.tempo}
           timeSignature={currentPartition.timeSignature}
           loopRegion={loopRegion}
@@ -570,6 +617,6 @@ const App: React.FC = () => {
       </main>
     </div>
   );
-}
+};
 
 export default App;

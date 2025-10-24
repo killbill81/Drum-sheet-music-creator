@@ -1,5 +1,5 @@
 import React from 'react';
-import { Note as NoteType, NoteDuration, Tool } from '../types';
+import { Note as NoteType, NoteDuration, Tool, DrumPart, Articulation } from '../types';
 import { DRUM_PART_NOTE_HEAD, MIDDLE_LINE_Y } from '../constants';
 
 export type NotePosition = { note: NoteType; x: number; y: number; };
@@ -45,18 +45,16 @@ export const BeamedNoteGroup: React.FC<BeamedNoteGroupProps> = ({ notePositions,
         const startX = posA.x + (groupStemDirection === 'up' ? noteRadius : -noteRadius);
         const endX = posB.x + (groupStemDirection === 'up' ? noteRadius : -noteRadius);
 
-        // Draw second beam if both notes are 16th or 32nd
         if ((posA.note.duration === NoteDuration.SIXTEENTH || posA.note.duration === NoteDuration.THIRTY_SECOND) &&
             (posB.note.duration === NoteDuration.SIXTEENTH || posB.note.duration === NoteDuration.THIRTY_SECOND)) {
             beams.push(<line key={`beam2-${i}`} x1={startX} y1={secondBeamY} x2={endX} y2={secondBeamY} stroke="currentColor" strokeWidth={beamThickness} />);
         }
 
-        // Draw third beam if both notes are 32nd
         if (posA.note.duration === NoteDuration.THIRTY_SECOND && posB.note.duration === NoteDuration.THIRTY_SECOND) {
             beams.push(<line key={`beam3-${i}`} x1={startX} y1={thirdBeamY} x2={endX} y2={thirdBeamY} stroke="currentColor" strokeWidth={beamThickness} />);
         }
     }
-    return beams;
+    return <g>{beams}</g>;
   };
 
   return (
@@ -84,33 +82,56 @@ export const BeamedNoteGroup: React.FC<BeamedNoteGroupProps> = ({ notePositions,
         strokeWidth={beamThickness}
       />
       
-      {/* Secondary and Tertiary Beams */}
       {renderSecondaryBeams()}
 
-      {/* Note Heads */}
+      {/* Note Heads and Articulations */}
       {notePositions.map(({ note, x, y }) => {
-        const noteHeadType = DRUM_PART_NOTE_HEAD[note.part];
+        const noteHeadType = DRUM_PART_NOTE_HEAD[note.part] || 'normal';
+        
         const renderNoteHead = () => {
           switch (noteHeadType) {
             case 'x':
-              return (
-                <g>
+              return <>
                   <line x1={x - noteRadius} y1={y - noteRadius} x2={x + noteRadius} y2={y + noteRadius} stroke="currentColor" strokeWidth="2" />
                   <line x1={x - noteRadius} y1={y + noteRadius} x2={x + noteRadius} y2={y - noteRadius} stroke="currentColor" strokeWidth="2" />
-                </g>
-              );
+              </>;
             case 'open_x':
-              return (
-                <g>
+              return <>
                   <line x1={x - noteRadius} y1={y - noteRadius} x2={x + noteRadius} y2={y + noteRadius} stroke="currentColor" strokeWidth="1.5" />
                   <line x1={x - noteRadius} y1={y + noteRadius} x2={x + noteRadius} y2={y - noteRadius} stroke="currentColor" strokeWidth="1.5" />
                   <circle cx={x} cy={y} r={noteRadius + 2} fill="none" stroke="currentColor" strokeWidth="1" />
-                </g>
-              );
+              </>;
             default:
               return <circle cx={x} cy={y} r={noteRadius} fill="currentColor" />;
           }
         };
+
+        const renderArticulation = () => {
+            if (note.articulation === Articulation.FLAM) {
+                const graceNoteRadius = 4;
+                const graceNoteX = x - 12;
+                const graceNoteY = y + 4;
+                return (
+                  <g>
+                    <circle cx={graceNoteX} cy={graceNoteY} r={graceNoteRadius} fill="currentColor" />
+                    <line x1={graceNoteX + graceNoteRadius} y1={graceNoteY} x2={graceNoteX + graceNoteRadius} y2={graceNoteY - 20} stroke="currentColor" strokeWidth="1.5" />
+                    <line x1={graceNoteX - 2} y1={graceNoteY - 10} x2={graceNoteX + graceNoteRadius + 4} y2={graceNoteY - 15} stroke="currentColor" strokeWidth="1.5" />
+                  </g>
+                );
+            }
+            if (note.articulation === Articulation.BUZZ_ROLL) {
+                const stemX = x + (groupStemDirection === 'up' ? noteRadius : -noteRadius);
+                const noteStemEndY = beamAnchorY;
+                const stemMidY = (y + noteStemEndY) / 2;
+                return (
+                    <g stroke="currentColor" strokeWidth="1.5">
+                        <line x1={stemX - 4} y1={stemMidY - 3} x2={stemX + 4} y2={stemMidY + 3} />
+                        <line x1={stemX - 4} y1={stemMidY + 3} x2={stemX + 4} y2={stemMidY - 3} />
+                    </g>
+                );
+            }
+            return null;
+        }
 
         return (
           <g
@@ -124,6 +145,7 @@ export const BeamedNoteGroup: React.FC<BeamedNoteGroupProps> = ({ notePositions,
             }}
           >
             {renderNoteHead()}
+            {renderArticulation()}
           </g>
         );
       })}

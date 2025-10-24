@@ -32,7 +32,7 @@ export const DRUM_PART_Y_POSITIONS: Record<DrumPart, number> = {
 };
 
 // Voice assignment for stem direction
-export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2> = {
+export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2 | 3> = {
   [DrumPart.CRASH_CYMBAL]: 1, // Stems up
   [DrumPart.RIDE_CYMBAL]: 1, // Stems up
   [DrumPart.HI_HAT_OPEN]: 1, // Stems up
@@ -42,7 +42,7 @@ export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2> = {
   [DrumPart.HIGH_TOM]: 2, // Stems down
   [DrumPart.MID_TOM]: 2, // Stems down
   [DrumPart.FLOOR_TOM]: 2, // Stems down
-  [DrumPart.BASS_DRUM]: 2, // Stems down
+  [DrumPart.BASS_DRUM]: 3, // Stems down, separate voice
   [DrumPart.HI_HAT_PEDAL]: 2, // Stems down (foot)
 };
 
@@ -63,7 +63,6 @@ export const DRUM_PART_NOTE_HEAD: Record<DrumPart, NoteHeadType> = {
   [DrumPart.FLOOR_TOM]: 'normal',
 };
 
-// Represents note durations as a fraction of a whole note.
 export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
   [NoteDuration.WHOLE]: 1,
   [NoteDuration.HALF]: 1/2,
@@ -71,8 +70,18 @@ export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
   [NoteDuration.EIGHTH]: 1/8,
   [NoteDuration.SIXTEENTH]: 1/16,
   [NoteDuration.THIRTY_SECOND]: 1/32,
+  [NoteDuration.EIGHTH_TRIPLET]: 1/12,
 };
 
+export const DURATION_TO_INTEGER_VALUE: Record<NoteDuration, number> = {
+  [NoteDuration.WHOLE]: 96,
+  [NoteDuration.HALF]: 48,
+  [NoteDuration.QUARTER]: 24,
+  [NoteDuration.EIGHTH]: 12,
+  [NoteDuration.SIXTEENTH]: 6,
+  [NoteDuration.THIRTY_SECOND]: 3,
+  [NoteDuration.EIGHTH_TRIPLET]: 8, // 24 / 3
+};
 
 export const TOOLBAR_TOOLS = [
   { id: Tool.PEN, label: 'Pen' },
@@ -87,6 +96,7 @@ export const TOOLBAR_DURATIONS = [
   { id: NoteDuration.EIGHTH, label: 'Eighth' },
   { id: NoteDuration.SIXTEENTH, label: 'Sixteenth' },
   { id: NoteDuration.THIRTY_SECOND, label: 'Thirty-second' },
+  { id: NoteDuration.EIGHTH_TRIPLET, label: 'Eighth Triplet' },
 ];
 
 export const TOOLBAR_DRUM_PARTS = [

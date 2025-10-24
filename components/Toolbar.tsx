@@ -1,7 +1,7 @@
 import React from 'react';
-import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition } from '../types';
+import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition, Articulation } from '../types';
 import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, ThirtySecondNoteIcon, AddLineIcon, TextIcon } from './Icons';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon } from './Icons';
 
 interface ToolbarProps {
   className?: string;
@@ -11,10 +11,13 @@ interface ToolbarProps {
   onCreatePartition: () => void;
   onDeletePartition: (id: string) => void;
   onRenamePartition: (name: string) => void;
+  onAddLine: () => void;
   selectedTool: Tool;
   setSelectedTool: (tool: Tool) => void;
   selectedDuration: NoteDuration;
   setSelectedDuration: (duration: NoteDuration) => void;
+  selectedArticulation: Articulation;
+  setSelectedArticulation: (articulation: Articulation) => void;
   selectedDrumPart: DrumPart;
   setSelectedDrumPart: (part: DrumPart) => void;
   isPlaying: boolean;
@@ -40,16 +43,24 @@ const DurationIcons: Record<NoteDuration, React.ReactNode> = {
   [NoteDuration.WHOLE]: <QuarterNoteIcon />, // Placeholder
 };
 
+const ArticulationIcons: Record<Articulation, React.ReactNode> = {
+  [Articulation.NONE]: <QuarterNoteIcon />,
+  [Articulation.FLAM]: <FlamIcon />,
+  [Articulation.BUZZ_ROLL]: <BuzzRollIcon />,
+};
+
+const articulationsToShow = [Articulation.FLAM, Articulation.BUZZ_ROLL];
+
 const ToolIcons: Record<Tool, React.ReactNode> = {
     [Tool.PEN]: <PenIcon />,
     [Tool.ERASER]: <EraserIcon />,
     [Tool.LOOP]: <LoopIcon />,
     [Tool.COPY]: <CopyIcon />,
-    [Tool.DELETE]: <TrashIcon />,
+    [Tool.DELETE]: <DeleteIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
-const timeSignatureDenominators = [4, 8];
+const timeSignatureDenominators = [4, 8]; // Force recompilation
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   partitions,
@@ -63,6 +74,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setSelectedTool,
   selectedDuration,
   setSelectedDuration,
+  selectedArticulation,
+  setSelectedArticulation,
   selectedDrumPart,
   setSelectedDrumPart,
   isPlaying,
@@ -114,6 +127,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Partition">
           <TrashIcon />
         </button>
+        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line">
+          <AddLineIcon />
+        </button>
       </div>
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
@@ -140,6 +156,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         ))}
       </div>
+
+      <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
+        {articulationsToShow.map((articulation) => (
+          <button key={articulation} onClick={() => setSelectedArticulation(selectedArticulation === articulation ? Articulation.NONE : articulation)} className={getButtonClass(selectedArticulation === articulation)} title={articulation}>
+            {ArticulationIcons[articulation]}
+          </button>
+        ))}
+      </div>
+
       
       <div className="flex-grow md:flex-grow-0">
         <select

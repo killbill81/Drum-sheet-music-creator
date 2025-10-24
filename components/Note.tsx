@@ -1,5 +1,5 @@
 import React from 'react';
-import { Note as NoteType, NoteDuration, Tool } from '../types';
+import { Note as NoteType, NoteDuration, Tool, DrumPart, Articulation } from '../types';
 import { DRUM_PART_NOTE_HEAD } from '../constants';
 
 interface NoteProps {
@@ -11,7 +11,7 @@ interface NoteProps {
 }
 
 export const Note: React.FC<NoteProps> = ({ note, x, y, onClick, selectedTool }) => {
-  const noteHeadType = DRUM_PART_NOTE_HEAD[note.part];
+  const noteHeadType = DRUM_PART_NOTE_HEAD[note.part] || 'normal';
   const stemHeight = 35;
   const stemDirection = note.stemDirection === 'up' ? -1 : 1;
   const noteRadius = 6;
@@ -77,6 +77,32 @@ export const Note: React.FC<NoteProps> = ({ note, x, y, onClick, selectedTool })
     );
   };
 
+  const renderArticulation = () => {
+    if (note.articulation === Articulation.FLAM) {
+      const graceNoteRadius = 4;
+      const graceNoteX = x - 12;
+      const graceNoteY = y + 4;
+      return (
+        <g>
+          <circle cx={graceNoteX} cy={graceNoteY} r={graceNoteRadius} fill="currentColor" />
+          <line x1={graceNoteX + graceNoteRadius} y1={graceNoteY} x2={graceNoteX + graceNoteRadius} y2={graceNoteY - 20} stroke="currentColor" strokeWidth="1.5" />
+          <line x1={graceNoteX - 2} y1={graceNoteY - 10} x2={graceNoteX + graceNoteRadius + 4} y2={graceNoteY - 15} stroke="currentColor" strokeWidth="1.5" />
+        </g>
+      );
+    }
+    if (note.articulation === Articulation.BUZZ_ROLL) {
+        const stemX = x + (note.stemDirection === 'up' ? noteRadius : -noteRadius);
+        const stemMidY = y + (stemDirection * stemHeight / 2);
+        return (
+            <g stroke="currentColor" strokeWidth="1.5">
+                <line x1={stemX - 4} y1={stemMidY - 3} x2={stemX + 4} y2={stemMidY + 3} />
+                <line x1={stemX - 4} y1={stemMidY + 3} x2={stemX + 4} y2={stemMidY - 3} />
+            </g>
+        );
+    }
+    return null;
+  };
+
   return (
     <g className="cursor-pointer" onClick={handleNoteClick}>
       {renderNoteHead()}
@@ -89,6 +115,7 @@ export const Note: React.FC<NoteProps> = ({ note, x, y, onClick, selectedTool })
         strokeWidth="1.5"
       />
       {renderFlag()}
+      {renderArticulation()}
     </g>
   );
 };

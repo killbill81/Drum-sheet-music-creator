@@ -1,4 +1,5 @@
-import { DrumPart } from './types';
+import { DrumPart, NoteDuration, Articulation } from './types';
+import { NOTE_TYPE_TO_FRACTIONAL_VALUE } from './constants';
 
 let audioContext: AudioContext | null = null;
 
@@ -130,14 +131,42 @@ const playCymbal = (context: AudioContext, time: number): AudioScheduledSourceNo
     return noise;
 }
 
+export const playSoundForPart = (
+    context: AudioContext, 
+    part: DrumPart, 
+    time: number, 
+    duration: NoteDuration, 
+    tempo: number,
+    articulation?: Articulation
+): AudioScheduledSourceNode | AudioScheduledSourceNode[] | null => {
+  if (articulation === Articulation.FLAM) {
+    const graceNoteTime = time - 0.03;
+    const mainNote = playSnare(context, time);
+    const graceNote = playSnare(context, graceNoteTime);
+    return [...mainNote, ...graceNote];
+  }
 
-export const playSoundForPart = (context: AudioContext, part: DrumPart, time: number): AudioScheduledSourceNode | AudioScheduledSourceNode[] | null => {
+  if (articulation === Articulation.BUZZ_ROLL) {
+    const secondsPerBeat = 60 / tempo;
+    const noteDurationInSeconds = NOTE_TYPE_TO_FRACTIONAL_VALUE[duration] * 4 * secondsPerBeat;
+    const rollSpeed = 0.05; // Time between each hit in the roll
+    const sources: AudioScheduledSourceNode[] = [];
+    for (let i = 0; i < noteDurationInSeconds; i += rollSpeed) {
+        const rollTime = time + i;
+        const rollSources = playSnare(context, rollTime);
+        sources.push(...rollSources);
+    }
+    return sources;
+  }
+
   switch (part) {
     case DrumPart.BASS_DRUM:
       return playKick(context, time);
     case DrumPart.SNARE:
       return playSnare(context, time);
     case DrumPart.HI_HAT_CLOSED:
+    case DrumPart.HI_HAT_OPEN:
+    case DrumPart.HI_HAT_PEDAL:
       return playHiHat(context, time);
     case DrumPart.HIGH_TOM:
       return playTom(context, time, 300);
@@ -148,6 +177,8 @@ export const playSoundForPart = (context: AudioContext, part: DrumPart, time: nu
     case DrumPart.CRASH_CYMBAL:
     case DrumPart.RIDE_CYMBAL:
       return playCymbal(context, time);
+    case DrumPart.SIDESTICK:
+        return playTom(context, time, 1000); // High-pitched click
     default:
       return null;
   }
