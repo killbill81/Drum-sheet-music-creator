@@ -4,10 +4,12 @@ import { TextAnnotation } from '../types';
 interface DraggableTextProps {
   annotation: TextAnnotation;
   onUpdate: (id: string, x: number, y: number) => void;
+  onUpdateText: (id: string, text: string) => void;
   onClick: (id: string) => void;
+  isSelected: boolean;
 }
 
-export const DraggableText: React.FC<DraggableTextProps> = ({ annotation, onUpdate, onClick }) => {
+export const DraggableText: React.FC<DraggableTextProps> = ({ annotation, onUpdate, onUpdateText, onClick, isSelected }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -44,8 +46,21 @@ export const DraggableText: React.FC<DraggableTextProps> = ({ annotation, onUpda
         e.stopPropagation();
         onClick(annotation.id);
       }}
+      onDoubleClick={() => {
+        const newText = window.prompt("Enter new text:", annotation.text);
+        if (newText) {
+          onUpdateText(annotation.id, newText);
+        }
+      }}
       className="cursor-move"
-      style={{ userSelect: 'none' }}
+      style={{
+        userSelect: 'none',
+        fontSize: annotation.fontSize,
+        fontWeight: annotation.fontWeight,
+        fontStyle: annotation.fontStyle,
+        stroke: isSelected ? 'blue' : 'none',
+        strokeWidth: isSelected ? 1 : 0,
+      }}
       dominantBaseline="middle"
       textAnchor="middle"
     >

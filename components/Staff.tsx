@@ -28,6 +28,7 @@ interface StaffProps {
   onAnnotationClick: (annotationId: string) => void;
   onMeasureClick: (measureIndex: number) => void;
   onUpdateTextAnnotation: (id: string, x: number, y: number) => void;
+  onUpdateAnnotationText: (id: string, text: string) => void;
   onInsertLine: (afterLineIndex: number) => void;
   onDeleteLine: (lineIndex: number) => void;
   selectedTool: Tool;
@@ -41,6 +42,7 @@ interface StaffProps {
   loopRegion: LoopRegion;
   loopStartMeasure: number | null;
   deleteStartMeasure: number | null;
+  selectedAnnotationId: string | null;
 }
 
 const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
@@ -74,8 +76,8 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
 }
 
 const Staff: React.FC<StaffProps> = ({
-  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onInsertLine, onDeleteLine,
-  selectedTool, selectedDrumPart, selectedDuration, isPlaying, playbackCursor, playbackProgress, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure
+  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onUpdateAnnotationText, onInsertLine, onDeleteLine,
+  selectedTool, selectedDrumPart, selectedDuration, isPlaying, playbackCursor, playbackProgress, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure, selectedAnnotationId
 }) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
@@ -326,7 +328,7 @@ const Staff: React.FC<StaffProps> = ({
             })}
 
             {textAnnotations.map(ann => (
-                <DraggableText key={ann.id} annotation={ann} onUpdate={onUpdateTextAnnotation} onClick={onAnnotationClick} />
+                <DraggableText key={ann.id} annotation={ann} onUpdate={onUpdateTextAnnotation} onUpdateText={onUpdateAnnotationText} onClick={onAnnotationClick} isSelected={ann.id === selectedAnnotationId} />
             ))}
           
             {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}

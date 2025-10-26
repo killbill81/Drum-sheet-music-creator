@@ -86,9 +86,12 @@ export const DURATION_TO_INTEGER_VALUE: Record<NoteDuration, number> = {
 export const TOOLBAR_TOOLS = [
   { id: Tool.PEN, label: 'Pen' },
   { id: Tool.ERASER, label: 'Eraser' },
+  { id: Tool.TEXT, label: 'Text' },
   { id: Tool.LOOP, label: 'Loop' },
   { id: Tool.COPY, label: 'Copy' },
-  { id: Tool.DELETE, label: 'Delete Measure' },
+  { id: Tool.DELETE, label: 'Delete' },
+  { id: Tool.ADD_MEASURE, label: 'Add Measure' },
+  { id: Tool.DELETE_MEASURE, label: 'Delete Measure' },
 ];
 
 export const TOOLBAR_DURATIONS = [

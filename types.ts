@@ -27,6 +27,11 @@ export enum Tool {
   LOOP = 'loop',
   COPY = 'copy',
   DELETE = 'delete',
+  ADD_MEASURE = 'add_measure',
+  DELETE_MEASURE = 'delete_measure',
+  ADD_LINE = 'add_line',
+  DELETE_LINE = 'delete_line',
+  TEXT = 'text',
 }
 
 export interface TextAnnotation {
@@ -34,6 +39,9 @@ export interface TextAnnotation {
   text: string;
   x: number;
   y: number;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
 }
 
 export type NoteHeadType = 'x' | 'normal' | 'open_x';

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition, Articulation } from '../types';
 import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon } from './Icons';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon, AddMeasureIcon, TextIcon } from './Icons';
 
 interface ToolbarProps {
   className?: string;
@@ -12,6 +12,8 @@ interface ToolbarProps {
   onDeletePartition: (id: string) => void;
   onRenamePartition: (name: string) => void;
   onAddLine: () => void;
+  onInsertLine: (afterLineIndex: number) => void;
+  onDeleteLine: (lineIndex: number) => void;
   selectedTool: Tool;
   setSelectedTool: (tool: Tool) => void;
   selectedDuration: NoteDuration;
@@ -32,6 +34,10 @@ interface ToolbarProps {
   onSave: () => void;
   onLoad: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExportPdf: () => void;
+  selectedFontSize: number;
+  selectedFontWeight: 'normal' | 'bold';
+  selectedFontStyle: 'normal' | 'italic';
+  onUpdateAnnotationStyle: (style: Partial<TextAnnotation>) => void;
 }
 
 const DurationIcons: Record<NoteDuration, React.ReactNode> = {
@@ -57,6 +63,9 @@ const ToolIcons: Record<Tool, React.ReactNode> = {
     [Tool.LOOP]: <LoopIcon />,
     [Tool.COPY]: <CopyIcon />,
     [Tool.DELETE]: <DeleteIcon />,
+    [Tool.ADD_MEASURE]: <AddMeasureIcon />,
+    [Tool.DELETE_MEASURE]: <TrashIcon />,
+    [Tool.TEXT]: <TextIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
@@ -90,7 +99,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSave,
   onLoad,
   onExportPdf,
-  className
+  className,
+  selectedFontSize,
+  selectedFontWeight,
+  selectedFontStyle,
+  onUpdateAnnotationStyle
 }) => {
   const getButtonClass = (isSelected: boolean) =>
     `p-2 rounded-lg transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 ${
@@ -127,8 +140,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Partition">
           <TrashIcon />
         </button>
-        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line">
+      </div>
+
+      <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
+        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line at the end">
           <AddLineIcon />
+        </button>
+        <button onClick={() => {
+          const line = window.prompt("Enter the line number to insert after:");
+          if (line) onInsertLine(parseInt(line, 10) - 1);
+        }} className={getButtonClass(false)} title="Insert Line">
+          <PlusIcon />
+        </button>
+        <button onClick={() => {
+          const line = window.prompt("Enter the line number to delete:");
+          if (line) onDeleteLine(parseInt(line, 10) - 1);
+        }} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Line">
+          <TrashIcon />
         </button>
       </div>
 
@@ -148,6 +176,33 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )
         })}
       </div>
+
+      {selectedTool === Tool.TEXT && (
+        <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg items-center gap-2">
+          <input
+            type="number"
+            value={selectedFontSize}
+            onChange={(e) => onUpdateAnnotationStyle({ fontSize: Number(e.target.value) })}
+            className="w-16 bg-white dark:bg-gray-700 p-1 rounded text-sm"
+            min="8"
+            max="72"
+          />
+          <button 
+            onClick={() => onUpdateAnnotationStyle({ fontWeight: selectedFontWeight === 'bold' ? 'normal' : 'bold' })} 
+            className={getButtonClass(selectedFontWeight === 'bold')}
+            title="Bold"
+          >
+            <span className="font-bold">B</span>
+          </button>
+          <button 
+            onClick={() => onUpdateAnnotationStyle({ fontStyle: selectedFontStyle === 'italic' ? 'normal' : 'italic' })} 
+            className={getButtonClass(selectedFontStyle === 'italic')}
+            title="Italic"
+          >
+            <span className="italic">I</span>
+          </button>
+        </div>
+      )}
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
         {TOOLBAR_DURATIONS.map(({ id, label }) => (

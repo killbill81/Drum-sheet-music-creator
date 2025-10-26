@@ -13,9 +13,13 @@ const App: React.FC = () => {
   const [selectedDuration, setSelectedDuration] = useState<NoteDuration>(NoteDuration.QUARTER);
   const [selectedDrumPart, setSelectedDrumPart] = useState<DrumPart>(DrumPart.SNARE);
   const [selectedArticulation, setSelectedArticulation] = useState<Articulation>(Articulation.NONE);
+  const [selectedFontSize, setSelectedFontSize] = useState<number>(16);
+  const [selectedFontWeight, setSelectedFontWeight] = useState<'normal' | 'bold'>('normal');
+  const [selectedFontStyle, setSelectedFontStyle] = useState<'normal' | 'italic'>('normal');
   const [loopRegion, setLoopRegion] = useState<LoopRegion>(null);
   const [loopStartMeasure, setLoopStartMeasure] = useState<number | null>(null);
   const [deleteStartMeasure, setDeleteStartMeasure] = useState<number | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   
   const [copiedMeasureNotes, setCopiedMeasureNotes] = useState<Note[] | null>(null);
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
@@ -47,7 +51,16 @@ const App: React.FC = () => {
     try {
       const savedPartitions = localStorage.getItem('drum-partitions');
       if (savedPartitions) {
-        const parsedPartitions = JSON.parse(savedPartitions);
+        const parsedPartitions = JSON.parse(savedPartitions).map((p: Partition) => ({
+          ...p,
+          textAnnotations: p.textAnnotations.map(ann => ({
+            ...ann,
+            fontSize: ann.fontSize || 16,
+            fontWeight: ann.fontWeight || 'normal',
+            fontStyle: ann.fontStyle || 'normal',
+          })),
+        }));
+
         if (Array.isArray(parsedPartitions) && parsedPartitions.length > 0) {
           setPartitions(parsedPartitions);
           setCurrentPartitionId(parsedPartitions[0].id);
@@ -63,12 +76,6 @@ const App: React.FC = () => {
     }
   }, [createNewPartition]);
 
-  useEffect(() => {
-    if (partitions.length > 0) {
-      localStorage.setItem('drum-partitions', JSON.stringify(partitions));
-    }
-  }, [partitions]);
-
   const currentPartition = useMemo(() => {
     return partitions.find(p => p.id === currentPartitionId) || null;
   }, [partitions, currentPartitionId]);
@@ -81,6 +88,47 @@ const App: React.FC = () => {
       )
     );
   }, [currentPartitionId]);
+
+  useEffect(() => {
+    if (partitions.length > 0) {
+      localStorage.setItem('drum-partitions', JSON.stringify(partitions));
+    }
+  }, [partitions]);
+
+  const handleUpdateAnnotationStyle = (style: Partial<TextAnnotation>) => {
+    if (style.fontSize) {
+      setSelectedFontSize(style.fontSize);
+    }
+    if (style.fontWeight) {
+      setSelectedFontWeight(style.fontWeight);
+    }
+    if (style.fontStyle) {
+      setSelectedFontStyle(style.fontStyle);
+    }
+
+    if (selectedAnnotationId && currentPartition) {
+      const updatedAnnotations = currentPartition.textAnnotations.map(ann => {
+        if (ann.id === selectedAnnotationId) {
+          return { ...ann, ...style };
+        }
+        return ann;
+      });
+      updateCurrentPartition({ textAnnotations: updatedAnnotations });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedAnnotationId && currentPartition) {
+      const annotation = currentPartition.textAnnotations.find(ann => ann.id === selectedAnnotationId);
+      if (annotation) {
+        setSelectedFontSize(annotation.fontSize || 16);
+        setSelectedFontWeight(annotation.fontWeight || 'normal');
+        setSelectedFontStyle(annotation.fontStyle || 'normal');
+      }
+    }
+  }, [selectedAnnotationId, currentPartition]);
+
+
 
   const handleAddLine = () => {
     if (!currentPartition) return;
@@ -183,6 +231,14 @@ const App: React.FC = () => {
     updateCurrentPartition({ textAnnotations: newAnnotations });
   };
 
+  const handleUpdateAnnotationText = (annotationId: string, text: string) => {
+    if (!currentPartition) return;
+    const newAnnotations = currentPartition.textAnnotations.map(ann => 
+      ann.id === annotationId ? { ...ann, text } : ann
+    );
+    updateCurrentPartition({ textAnnotations: newAnnotations });
+  };
+
   const handleInsertLine = (afterLineIndex: number) => {
     if (!currentPartition) return;
 
@@ -209,6 +265,38 @@ const App: React.FC = () => {
       textAnnotations: updatedAnnotations,
       numMeasures: newNumMeasures
     });
+  };
+
+  const handleInsertMeasure = (measureIndex: number) => {
+    if (!currentPartition) return;
+
+    const updatedNotes = currentPartition.notes.map(note => {
+      if (note.measure >= measureIndex) {
+        return { ...note, measure: note.measure + 1 };
+      }
+      return note;
+    });
+
+    const newNumMeasures = currentPartition.numMeasures + 1;
+    updateCurrentPartition({
+      notes: updatedNotes,
+      numMeasures: newNumMeasures
+    });
+  };
+
+  const handleAddMeasureAtEnd = () => {
+    if (!currentPartition) return;
+    handleInsertMeasure(currentPartition.numMeasures);
+  };
+
+  const handleInsertMeasureInLine = (measureIndex: number) => {
+    if (!currentPartition) return;
+    handleInsertMeasure(measureIndex);
+  };
+
+  const handleDeleteMeasure = (measureIndex: number) => {
+    if (!currentPartition) return;
+    handleDeleteMeasureRange(measureIndex, measureIndex);
   };
 
   const stopPlayback = useCallback(() => {
@@ -247,6 +335,9 @@ const App: React.FC = () => {
     if (selectedTool === Tool.ERASER && currentPartition) {
       const newAnnotations = currentPartition.textAnnotations.filter(ann => ann.id !== annotationId);
       updateCurrentPartition({ textAnnotations: newAnnotations });
+    } else {
+      setSelectedAnnotationId(annotationId);
+      setSelectedTool(Tool.TEXT);
     }
   };
 
@@ -293,10 +384,15 @@ const App: React.FC = () => {
           text,
           x: info.x,
           y: info.y,
+          fontSize: selectedFontSize,
+          fontWeight: selectedFontWeight,
+          fontStyle: selectedFontStyle,
         };
         updateCurrentPartition({ textAnnotations: [...currentPartition.textAnnotations, newAnnotation] });
         setSelectedTool(Tool.PEN);
       }
+    } else if (selectedTool === Tool.ADD_MEASURE) {
+      handleInsertMeasure(info.measureIndex);
     }
   };
 
@@ -386,6 +482,8 @@ const App: React.FC = () => {
         handleDeleteMeasureRange(start, end);
         setDeleteStartMeasure(null);
       }
+    } else if (selectedTool === Tool.DELETE_MEASURE) {
+      handleDeleteMeasure(measureIndex);
     }
   };
 
@@ -557,6 +655,9 @@ const App: React.FC = () => {
         onDeletePartition={handleDeletePartition}
         onRenamePartition={handleRenamePartition}
         onAddLine={handleAddLine}
+        onInsertLine={handleInsertLine}
+        onDeleteLine={handleDeleteLine}
+        onAddMeasureAtEnd={handleAddMeasureAtEnd}
         selectedTool={selectedTool}
         setSelectedTool={handleToolSelect}
         selectedDuration={selectedDuration}
@@ -577,6 +678,10 @@ const App: React.FC = () => {
         onSave={handleExport} // Renamed for clarity
         onLoad={handleImport}   // Renamed for clarity
         onExportPdf={handleExportPdf}
+        selectedFontSize={selectedFontSize}
+        selectedFontWeight={selectedFontWeight}
+        selectedFontStyle={selectedFontStyle}
+        onUpdateAnnotationStyle={handleUpdateAnnotationStyle}
       />
       <main className="w-full px-8 flex-grow flex flex-col items-center print-container">
         <h1 className="text-3xl font-bold mb-4 text-gray-800 dark:text-gray-100 no-print">{currentPartition.name}</h1>
@@ -586,9 +691,10 @@ const App: React.FC = () => {
           {selectedTool === Tool.TEXT && "Click on the score to add text."}
           {selectedTool === Tool.DELETE && deleteStartMeasure === null && "Click a measure to start deleting."}
           {selectedTool === Tool.DELETE && deleteStartMeasure !== null && `First measure selected (${deleteStartMeasure + 1}). Click another measure to end deletion.`}
-          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && loopRegion && "Playing looped section."}
-          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}
-          {selectedTool === Tool.LOOP && !loopStartMeasure && " Click a measure to start a loop."}
+          {selectedTool === Tool.ADD_MEASURE && "Click on the score to add a measure."}
+          {selectedTool === Tool.DELETE_MEASURE && "Click on a measure to delete it."}
+          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && selectedTool !== Tool.ADD_MEASURE && selectedTool !== Tool.DELETE_MEASURE && loopRegion && "Playing looped section."}
+          {copyStep === null && selectedTool !== Tool.TEXT && selectedTool !== Tool.DELETE && selectedTool !== Tool.ADD_MEASURE && selectedTool !== Tool.DELETE_MEASURE && !loopRegion && selectedTool !== Tool.LOOP && "Set the time signature, add notes, and press play to listen."}          {selectedTool === Tool.LOOP && !loopStartMeasure && " Click a measure to start a loop."}
           {selectedTool === Tool.LOOP && loopStartMeasure !== null && ` First measure selected (${loopStartMeasure + 1}). Click another measure to end the loop.`}
         </p>
         <Staff
@@ -600,8 +706,11 @@ const App: React.FC = () => {
           onAnnotationClick={handleAnnotationClick}
           onMeasureClick={handleMeasureClick}
           onUpdateTextAnnotation={handleUpdateTextAnnotation}
+          onUpdateAnnotationText={handleUpdateAnnotationText}
           onInsertLine={handleInsertLine}
           onDeleteLine={handleDeleteLine}
+          onInsertMeasure={handleInsertMeasureInLine}
+          onDeleteMeasure={handleDeleteMeasure}
           selectedTool={selectedTool}
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}
@@ -613,6 +722,7 @@ const App: React.FC = () => {
           loopRegion={loopRegion}
           loopStartMeasure={loopStartMeasure}
           deleteStartMeasure={deleteStartMeasure}
+          selectedAnnotationId={selectedAnnotationId}
         />
       </main>
     </div>
