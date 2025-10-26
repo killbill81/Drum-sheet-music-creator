@@ -10,6 +10,7 @@ export enum DrumPart {
   HI_HAT_PEDAL = 'HI_HAT_PEDAL',
   CRASH_CYMBAL = 'CRASH_CYMBAL',
   RIDE_CYMBAL = 'RIDE_CYMBAL',
+  REST = 'REST',
 }
 
 export enum NoteDuration {
@@ -19,6 +20,7 @@ export enum NoteDuration {
   EIGHTH = 'eighth',
   SIXTEENTH = 'sixteenth',
   THIRTY_SECOND = 'thirty_second',
+  SIXTY_FOURTH = 'sixty_fourth',
 }
 
 export enum Tool {

@@ -1,7 +1,7 @@
 import React from 'react';
-import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition, Articulation } from '../types';
-import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon, AddMeasureIcon, TextIcon } from './Icons';
+import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition, Articulation, TextAnnotation } from '../types';
+import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS, TOOLBAR_RESTS } from '../constants';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon, AddMeasureIcon, TextIcon, WholeRestIcon, HalfRestIcon, QuarterRestIcon, EighthRestIcon, SixteenthRestIcon, ThirtySecondRestIcon, SixtyFourthRestIcon } from './Icons';
 
 interface ToolbarProps {
   className?: string;
@@ -56,6 +56,16 @@ const ArticulationIcons: Record<Articulation, React.ReactNode> = {
 };
 
 const articulationsToShow = [Articulation.FLAM, Articulation.BUZZ_ROLL];
+
+const RestIcons: Record<NoteDuration, React.ReactNode> = {
+  [NoteDuration.WHOLE]: <WholeRestIcon />,
+  [NoteDuration.HALF]: <HalfRestIcon />,
+  [NoteDuration.QUARTER]: <QuarterRestIcon />,
+  [NoteDuration.EIGHTH]: <EighthRestIcon />,
+  [NoteDuration.SIXTEENTH]: <SixteenthRestIcon />,
+  [NoteDuration.THIRTY_SECOND]: <ThirtySecondRestIcon />,
+  [NoteDuration.SIXTY_FOURTH]: <SixtyFourthRestIcon />,
+};
 
 const ToolIcons: Record<Tool, React.ReactNode> = {
     [Tool.PEN]: <PenIcon />,
@@ -134,28 +144,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onChange={(e) => onRenamePartition(e.target.value)}
           className="bg-white dark:bg-gray-700 p-2 rounded-lg w-32"
         />
-        <button onClick={onCreatePartition} className={getButtonClass(false)} title="New Partition">
+        <button onClick={onCreatePartition} className={getButtonClass(false)} title="Nouvelle Partition">
           <PlusIcon />
         </button>
-        <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Partition">
+        <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500`} title="Supprimer Partition">
           <TrashIcon />
         </button>
       </div>
 
       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
-        <button onClick={onAddLine} className={getButtonClass(false)} title="Add Line at the end">
+        <button onClick={onAddLine} className={getButtonClass(false)} title="Ajouter une ligne à la fin">
           <AddLineIcon />
         </button>
         <button onClick={() => {
-          const line = window.prompt("Enter the line number to insert after:");
+          const line = window.prompt("Entrez le numéro de la ligne après laquelle insérer :");
           if (line) onInsertLine(parseInt(line, 10) - 1);
-        }} className={getButtonClass(false)} title="Insert Line">
+        }} className={getButtonClass(false)} title="Insérer une ligne">
           <PlusIcon />
         </button>
         <button onClick={() => {
-          const line = window.prompt("Enter the line number to delete:");
+          const line = window.prompt("Entrez le numéro de la ligne à supprimer :");
           if (line) onDeleteLine(parseInt(line, 10) - 1);
-        }} className={`${getButtonClass(false)} hover:bg-red-500`} title="Delete Line">
+        }} className={`${getButtonClass(false)} hover:bg-red-500`} title="Supprimer la ligne">
           <TrashIcon />
         </button>
       </div>
@@ -190,14 +200,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <button 
             onClick={() => onUpdateAnnotationStyle({ fontWeight: selectedFontWeight === 'bold' ? 'normal' : 'bold' })} 
             className={getButtonClass(selectedFontWeight === 'bold')}
-            title="Bold"
+            title="Gras"
           >
             <span className="font-bold">B</span>
           </button>
           <button 
             onClick={() => onUpdateAnnotationStyle({ fontStyle: selectedFontStyle === 'italic' ? 'normal' : 'italic' })} 
             className={getButtonClass(selectedFontStyle === 'italic')}
-            title="Italic"
+            title="Italique"
           >
             <span className="italic">I</span>
           </button>
@@ -208,6 +218,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {TOOLBAR_DURATIONS.map(({ id, label }) => (
           <button key={id} onClick={() => setSelectedDuration(id)} className={getButtonClass(selectedDuration === id)} title={label}>
             {DurationIcons[id]}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
+        {TOOLBAR_RESTS.map(({ id, label }) => (
+          <button 
+            key={id} 
+            onClick={() => {
+              setSelectedTool(Tool.PEN);
+              setSelectedDrumPart(DrumPart.REST);
+              setSelectedDuration(id);
+            }}
+            className={getButtonClass(selectedDrumPart === DrumPart.REST && selectedDuration === id)} 
+            title={label}
+          >
+            {RestIcons[id]}
           </button>
         ))}
       </div>
@@ -245,7 +272,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2">
-        <button onClick={isPlaying ? onStop : onPlay} className={`${getButtonClass(false)} w-12`} title={isPlaying ? 'Stop' : 'Play'}>
+        <button onClick={isPlaying ? onStop : onPlay} className={`${getButtonClass(false)} w-12`} title={isPlaying ? 'Arrêt' : 'Lecture'}>
           {isPlaying ? <StopIcon /> : <PlayIcon />}
         </button>
         <div className="flex items-center gap-2 px-2">
@@ -265,14 +292,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2">
-        <button onClick={onSave} className={getButtonClass(false)} title="Export Scores">
+        <button onClick={onSave} className={getButtonClass(false)} title="Exporter les partitions">
           <SaveIcon />
         </button>
-        <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Import Scores">
+        <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Importer les partitions">
           <LoadIcon />
         </button>
         <input type="file" accept=".json" onChange={onLoad} ref={loadInputRef} className="hidden" />
-        <button onClick={onExportPdf} className={getButtonClass(false)} title="Export to PDF">
+        <button onClick={onExportPdf} className={getButtonClass(false)} title="Exporter en PDF">
           <PdfIcon />
         </button>
       </div>

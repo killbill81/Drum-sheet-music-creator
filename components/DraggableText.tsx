@@ -47,7 +47,7 @@ export const DraggableText: React.FC<DraggableTextProps> = ({ annotation, onUpda
         onClick(annotation.id);
       }}
       onDoubleClick={() => {
-        const newText = window.prompt("Enter new text:", annotation.text);
+        const newText = window.prompt("Entrez le nouveau texte :", annotation.text);
         if (newText) {
           onUpdateText(annotation.id, newText);
         }

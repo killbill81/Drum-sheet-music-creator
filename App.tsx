@@ -137,10 +137,10 @@ const App: React.FC = () => {
 
   const handleDeletePartition = (idToDelete: string) => {
     if (partitions.length <= 1) {
-      alert("You cannot delete the last partition.");
+      alert("Vous ne pouvez pas supprimer la dernière partition.");
       return;
     }
-    if (window.confirm("Are you sure you want to delete this partition?")) {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cette partition ?")) {
       const newPartitions = partitions.filter(p => p.id !== idToDelete);
       setPartitions(newPartitions);
       if (currentPartitionId === idToDelete) {
@@ -155,11 +155,11 @@ const App: React.FC = () => {
 
   const handleDeleteLine = (lineIndex: number) => {
     if (!currentPartition || currentPartition.numMeasures <= MEASURES_PER_LINE) {
-      alert("You cannot delete the last line.");
+      alert("Vous ne pouvez pas supprimer la dernière ligne.");
       return;
     }
 
-    if (window.confirm("Are you sure you want to delete this entire line?")) {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cette ligne entière ?")) {
       const startMeasure = lineIndex * MEASURES_PER_LINE;
       const endMeasure = startMeasure + MEASURES_PER_LINE - 1;
 
@@ -196,7 +196,7 @@ const App: React.FC = () => {
 
   const handleDeleteMeasureRange = (start: number, end: number) => {
     if (!currentPartition) return;
-    if (window.confirm(`Are you sure you want to delete measures ${start + 1} through ${end + 1}?`)) {
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer les mesures ${start + 1} à ${end + 1} ?`)) {
       const measuresToDelete = Array.from({ length: end - start + 1 }, (_, i) => start + i);
       const updatedNotes = currentPartition.notes
         .filter(note => !measuresToDelete.includes(note.measure))
@@ -377,7 +377,7 @@ const App: React.FC = () => {
       const newNotes = [...notesWithoutReplaced, newNote].sort((a, b) => a.measure - b.measure || a.beat - b.beat);
       updateCurrentPartition({ notes: newNotes });
     } else if (selectedTool === Tool.TEXT) {
-      const text = window.prompt("Enter text:");
+      const text = window.prompt("Entrez le texte :");
       if (text) {
         const newAnnotation: TextAnnotation = {
           id: crypto.randomUUID(),
@@ -398,7 +398,7 @@ const App: React.FC = () => {
 
   const handleTimeSignatureChange = (newTimeSignature: TimeSignature) => {
     if (currentPartition?.notes.length > 0) {
-      if (window.confirm("Changing the time signature will clear all notes in this partition. Are you sure?")) {
+      if (window.confirm("Changer la signature rythmique effacera toutes les notes de cette partition. Êtes-vous sûr ?")) {
         updateCurrentPartition({ notes: [], timeSignature: newTimeSignature });
         setLoopRegion(null);
       } else {

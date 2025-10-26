@@ -10,6 +10,7 @@ import { Note } from './Note';
 import { PercussionClef, PlaybackArrowIcon, TrashIcon, AddLineIcon } from './Icons';
 import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 import { DraggableText } from './DraggableText';
+import { Rest } from './Rest';
 
 export interface StaffClickInfo {
   measureIndex: number;
@@ -120,12 +121,25 @@ const Staff: React.FC<StaffProps> = ({
 
   const totalHeight = useMemo(() => numLines * STAFF_HEIGHT + (numLines - 1) * STAFF_VERTICAL_GAP + 20, [numLines]);
 
-  const noteGroups = useMemo(() => {
-    const voice1Notes = notes.filter(n => n.voice === 1);
-    const voice2Notes = notes.filter(n => n.voice === 2);
-    const voice3Notes = notes.filter(n => n.voice === 3);
-    return [...groupNotesForBeaming(voice1Notes), ...groupNotesForBeaming(voice2Notes), ...groupNotesForBeaming(voice3Notes)];
+  const { rests, musicNotes } = useMemo(() => {
+    const rests: NoteType[] = [];
+    const musicNotes: NoteType[] = [];
+    notes.forEach(note => {
+      if (note.part === DrumPart.REST) {
+        rests.push(note);
+      } else {
+        musicNotes.push(note);
+      }
+    });
+    return { rests, musicNotes };
   }, [notes]);
+
+  const noteGroups = useMemo(() => {
+    const voice1Notes = musicNotes.filter(n => n.voice === 1);
+    const voice2Notes = musicNotes.filter(n => n.voice === 2);
+    const voice3Notes = musicNotes.filter(n => n.voice === 3);
+    return [...groupNotesForBeaming(voice1Notes), ...groupNotesForBeaming(voice2Notes), ...groupNotesForBeaming(voice3Notes)];
+  }, [musicNotes]);
   
   const getPositionFromMouseEvent = (e: React.MouseEvent<SVGSVGElement>) => {
       const svg = e.currentTarget;
@@ -326,6 +340,17 @@ const Staff: React.FC<StaffProps> = ({
               }
               return null;
             })}
+
+            {/* Render Rests */}
+            {rests.map(rest => {
+              const lineIndex = Math.floor(rest.measure / MEASURES_PER_LINE);
+              const measureInLine = rest.measure % MEASURES_PER_LINE;
+              const measureStart = layout.measureStartXs[lineIndex][measureInLine];
+              const beatWidth = (layout.measureWidths[rest.measure] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
+              const x = measureStart + MEASURE_PADDING_HORIZONTAL + rest.beat * beatWidth;
+              return <Rest key={rest.id} note={rest} x={x} />;
+            })}
+
 
             {textAnnotations.map(ann => (
                 <DraggableText key={ann.id} annotation={ann} onUpdate={onUpdateTextAnnotation} onUpdateText={onUpdateAnnotationText} onClick={onAnnotationClick} isSelected={ann.id === selectedAnnotationId} />

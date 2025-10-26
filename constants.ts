@@ -29,6 +29,7 @@ export const DRUM_PART_Y_POSITIONS: Record<DrumPart, number> = {
   [DrumPart.FLOOR_TOM]: STAFF_Y_OFFSET + 2.5 * L, // 3rd space
   [DrumPart.BASS_DRUM]: STAFF_Y_OFFSET + 4.5 * L, // Space below staff
   [DrumPart.HI_HAT_PEDAL]: STAFF_Y_OFFSET + 4.5 * L, // Space below staff
+  [DrumPart.REST]: STAFF_Y_OFFSET + 2 * L, // Middle line, for placement logic
 };
 
 // Voice assignment for stem direction
@@ -44,6 +45,7 @@ export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2 | 3> = {
   [DrumPart.FLOOR_TOM]: 2, // Stems down
   [DrumPart.BASS_DRUM]: 3, // Stems down, separate voice
   [DrumPart.HI_HAT_PEDAL]: 2, // Stems down (foot)
+  [DrumPart.REST]: 1, // No voice, but needs a value
 };
 
 // The Y position of the middle line of the staff, used to determine stem direction.
@@ -61,6 +63,7 @@ export const DRUM_PART_NOTE_HEAD: Record<DrumPart, NoteHeadType> = {
   [DrumPart.HIGH_TOM]: 'normal',
   [DrumPart.MID_TOM]: 'normal',
   [DrumPart.FLOOR_TOM]: 'normal',
+  [DrumPart.REST]: 'normal', // Not used, but needs a value
 };
 
 export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
@@ -70,6 +73,7 @@ export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
   [NoteDuration.EIGHTH]: 1/8,
   [NoteDuration.SIXTEENTH]: 1/16,
   [NoteDuration.THIRTY_SECOND]: 1/32,
+  [NoteDuration.SIXTY_FOURTH]: 1/64,
   [NoteDuration.EIGHTH_TRIPLET]: 1/12,
 };
 
@@ -80,26 +84,27 @@ export const DURATION_TO_INTEGER_VALUE: Record<NoteDuration, number> = {
   [NoteDuration.EIGHTH]: 12,
   [NoteDuration.SIXTEENTH]: 6,
   [NoteDuration.THIRTY_SECOND]: 3,
+  [NoteDuration.SIXTY_FOURTH]: 1.5,
   [NoteDuration.EIGHTH_TRIPLET]: 8, // 24 / 3
 };
 
 export const TOOLBAR_TOOLS = [
-  { id: Tool.PEN, label: 'Pen' },
-  { id: Tool.ERASER, label: 'Eraser' },
-  { id: Tool.TEXT, label: 'Text' },
-  { id: Tool.LOOP, label: 'Loop' },
-  { id: Tool.COPY, label: 'Copy' },
-  { id: Tool.DELETE, label: 'Delete' },
-  { id: Tool.ADD_MEASURE, label: 'Add Measure' },
-  { id: Tool.DELETE_MEASURE, label: 'Delete Measure' },
+  { id: Tool.PEN, label: 'Crayon' },
+  { id: Tool.ERASER, label: 'Gomme' },
+  { id: Tool.TEXT, label: 'Texte' },
+  { id: Tool.LOOP, label: 'Boucle' },
+  { id: Tool.COPY, label: 'Copier' },
+  { id: Tool.DELETE, label: 'Supprimer' },
+  { id: Tool.ADD_MEASURE, label: 'Ajouter Mesure' },
+  { id: Tool.DELETE_MEASURE, label: 'Supprimer Mesure' },
 ];
 
 export const TOOLBAR_DURATIONS = [
-  { id: NoteDuration.QUARTER, label: 'Quarter' },
-  { id: NoteDuration.EIGHTH, label: 'Eighth' },
-  { id: NoteDuration.SIXTEENTH, label: 'Sixteenth' },
-  { id: NoteDuration.THIRTY_SECOND, label: 'Thirty-second' },
-  { id: NoteDuration.EIGHTH_TRIPLET, label: 'Eighth Triplet' },
+  { id: NoteDuration.QUARTER, label: 'Noire' },
+  { id: NoteDuration.EIGHTH, label: 'Croche' },
+  { id: NoteDuration.SIXTEENTH, label: 'Double-croche' },
+  { id: NoteDuration.THIRTY_SECOND, label: 'Triple-croche' },
+  { id: NoteDuration.EIGHTH_TRIPLET, label: 'Triolet de croches' },
 ];
 
 export const TOOLBAR_DRUM_PARTS = [
@@ -114,4 +119,14 @@ export const TOOLBAR_DRUM_PARTS = [
   { id: DrumPart.HI_HAT_PEDAL, label: 'Charleston au pied' },
   { id: DrumPart.CRASH_CYMBAL, label: 'Cymbale crash' },
   { id: DrumPart.RIDE_CYMBAL, label: 'Cymbale ride' },
+];
+
+export const TOOLBAR_RESTS = [
+  { id: NoteDuration.WHOLE, label: 'Pause' },
+  { id: NoteDuration.HALF, label: 'Demi-pause' },
+  { id: NoteDuration.QUARTER, label: 'Soupir' },
+  { id: NoteDuration.EIGHTH, label: 'Demi-soupir' },
+  { id: NoteDuration.SIXTEENTH, label: 'Quart de soupir' },
+  { id: NoteDuration.THIRTY_SECOND, label: 'Huitième de soupir' },
+  { id: NoteDuration.SIXTY_FOURTH, label: 'Seizième de soupir' },
 ];

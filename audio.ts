@@ -159,6 +159,10 @@ export const playSoundForPart = (
     return sources;
   }
 
+  if (part === DrumPart.REST) {
+    return null;
+  }
+
   switch (part) {
     case DrumPart.BASS_DRUM:
       return playKick(context, time);
