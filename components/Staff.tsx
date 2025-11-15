@@ -36,8 +36,7 @@ interface StaffProps {
   selectedDrumPart: DrumPart;
   selectedDuration: NoteDuration;
   isPlaying: boolean;
-  playbackCursor: PlaybackCursor;
-  playbackProgress: number;
+  currentBeat: number | null;
   tempo: number;
   timeSignature: TimeSignature;
   loopRegion: LoopRegion;
@@ -78,7 +77,7 @@ const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
 
 const Staff: React.FC<StaffProps> = ({
   notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onUpdateAnnotationText, onInsertLine, onDeleteLine,
-  selectedTool, selectedDrumPart, selectedDuration, isPlaying, playbackCursor, playbackProgress, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure, selectedAnnotationId
+  selectedTool, selectedDrumPart, selectedDuration, isPlaying, currentBeat, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure, selectedAnnotationId
 }) => {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
@@ -344,11 +343,12 @@ const Staff: React.FC<StaffProps> = ({
             {/* Render Rests */}
             {rests.map(rest => {
               const lineIndex = Math.floor(rest.measure / MEASURES_PER_LINE);
+              const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
               const measureInLine = rest.measure % MEASURES_PER_LINE;
               const measureStart = layout.measureStartXs[lineIndex][measureInLine];
               const beatWidth = (layout.measureWidths[rest.measure] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
               const x = measureStart + MEASURE_PADDING_HORIZONTAL + rest.beat * beatWidth;
-              return <Rest key={rest.id} note={rest} x={x} />;
+              return <Rest key={rest.id} note={rest} x={x} y={lineYOffset} onClick={onNoteClick} />;
             })}
 
 
@@ -359,20 +359,33 @@ const Staff: React.FC<StaffProps> = ({
             {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
 
             {/* Playback Cursor */}
-            {isPlaying && playbackCursor && (
-                <PlaybackArrowIcon x={playbackCursor.x} y={playbackCursor.y} />
-            )}
-            {isPlaying && playbackProgress > 0 && (
-              <line
-                x1={layout.totalWidth * playbackProgress}
-                y1={0}
-                x2={layout.totalWidth * playbackProgress}
-                y2={totalHeight}
-                stroke="rgba(255, 50, 50, 0.8)"
-                strokeWidth="1.5"
-                className="pointer-events-none"
-              />
-            )}
+            {isPlaying && currentBeat !== null && (() => {
+              const measureIndex = Math.floor(currentBeat / beatsPerMeasure);
+              if (measureIndex >= numMeasures) return null;
+
+              const beatInMeasure = currentBeat % beatsPerMeasure;
+              const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
+              const measureInLine = measureIndex % MEASURES_PER_LINE;
+
+              if (lineIndex >= layout.measureStartXs.length || measureInLine >= layout.measureStartXs[lineIndex].length) return null;
+
+              const measureStart = layout.measureStartXs[lineIndex][measureInLine];
+              const beatWidth = (layout.measureWidths[measureIndex] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
+              const x = measureStart + MEASURE_PADDING_HORIZONTAL + beatInMeasure * beatWidth;
+              const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+
+              return (
+                <line
+                  x1={x}
+                  y1={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP}
+                  x2={x}
+                  y2={lineYOffset + STAFF_Y_OFFSET + 5 * STAFF_LINE_GAP}
+                  stroke="rgba(255, 50, 50, 0.8)"
+                  strokeWidth="2"
+                  className="pointer-events-none"
+                />
+              );
+            })()}
         </svg>
     </div>
   );

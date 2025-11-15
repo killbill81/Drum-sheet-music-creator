@@ -33,7 +33,7 @@ export const DRUM_PART_Y_POSITIONS: Record<DrumPart, number> = {
 };
 
 // Voice assignment for stem direction
-export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2 | 3> = {
+export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2 | 3 | 4> = {
   [DrumPart.CRASH_CYMBAL]: 1, // Stems up
   [DrumPart.RIDE_CYMBAL]: 1, // Stems up
   [DrumPart.HI_HAT_OPEN]: 1, // Stems up
@@ -45,7 +45,7 @@ export const DRUM_PART_VOICE: Record<DrumPart, 1 | 2 | 3> = {
   [DrumPart.FLOOR_TOM]: 2, // Stems down
   [DrumPart.BASS_DRUM]: 3, // Stems down, separate voice
   [DrumPart.HI_HAT_PEDAL]: 2, // Stems down (foot)
-  [DrumPart.REST]: 1, // No voice, but needs a value
+  [DrumPart.REST]: 4, // No voice, but needs a value
 };
 
 // The Y position of the middle line of the staff, used to determine stem direction.

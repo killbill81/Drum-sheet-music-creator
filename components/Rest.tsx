@@ -6,6 +6,8 @@ import { STAFF_Y_OFFSET, STAFF_LINE_GAP } from '../constants';
 interface RestProps {
   note: NoteType;
   x: number;
+  y: number;
+  onClick: (noteId: string) => void;
 }
 
 const RestIconComponents: Partial<Record<NoteDuration, React.FC<any>>> = {
@@ -18,23 +20,28 @@ const RestIconComponents: Partial<Record<NoteDuration, React.FC<any>>> = {
   [NoteDuration.SIXTY_FOURTH]: SixtyFourthRestIcon,
 };
 
-export const Rest: React.FC<RestProps> = ({ note, x }) => {
+export const Rest: React.FC<RestProps> = ({ note, x, y, onClick }) => {
   const RestIcon = RestIconComponents[note.duration];
   if (!RestIcon) return null;
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClick(note.id);
+  };
+
   if (note.duration === NoteDuration.WHOLE) {
     // Hangs from the 4th line
-    return <g transform={`translate(${x}, 0)`}><RestIcon y={STAFF_Y_OFFSET + 3 * STAFF_LINE_GAP} /></g>;
+    return <g transform={`translate(${x}, ${y})`} onClick={handleClick} className="cursor-pointer"><RestIcon y={STAFF_Y_OFFSET + 3 * STAFF_LINE_GAP} /></g>;
   } else if (note.duration === NoteDuration.HALF) {
     // Sits on the 3rd line
-    return <g transform={`translate(${x}, 0)`}><RestIcon y={STAFF_Y_OFFSET + 2 * STAFF_LINE_GAP - 6} /></g>;
+    return <g transform={`translate(${x}, ${y})`} onClick={handleClick} className="cursor-pointer"><RestIcon y={STAFF_Y_OFFSET + 2 * STAFF_LINE_GAP - 6} /></g>;
   }
 
   // For quarter and smaller rests, center them vertically
-  const yPos = STAFF_Y_OFFSET + 1.5 * STAFF_LINE_GAP;
+  const yPos = y + STAFF_Y_OFFSET + 1.5 * STAFF_LINE_GAP;
 
   return (
-    <g transform={`translate(${x}, ${yPos})`}>
+    <g transform={`translate(${x}, ${yPos})`} onClick={handleClick} className="cursor-pointer">
       <RestIcon />
     </g>
   );

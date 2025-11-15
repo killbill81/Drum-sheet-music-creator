@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [currentBeat, setCurrentBeat] = useState<number | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const scheduledSourcesRef = useRef<AudioScheduledSourceNode[]>([]);
@@ -301,7 +301,7 @@ const App: React.FC = () => {
 
   const stopPlayback = useCallback(() => {
     setIsPlaying(false);
-    setPlaybackProgress(0);
+    setCurrentBeat(null);
     pauseTimeRef.current = 0;
 
     if (animationFrameRef.current) {
@@ -350,15 +350,21 @@ const App: React.FC = () => {
       if (noteToReplace && noteToReplace.duration === selectedDuration) return;
 
       const voice = DRUM_PART_VOICE[selectedDrumPart];
-            const measureCapacity = (timeSignature.top / timeSignature.bottom) * 96; // 96 is the integer value for a whole note
-            const newNoteValue = DURATION_TO_INTEGER_VALUE[selectedDuration];
-      
-            const valueOfOtherNotes = notes
-              .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
-              .reduce((sum, note) => sum + DURATION_TO_INTEGER_VALUE[note.duration], 0);
-      
-            if (valueOfOtherNotes + newNoteValue > measureCapacity) {
-        console.warn(`Cannot add note: exceeds measure capacity for voice ${voice}.`);
+      const newNoteDurationInBeats = DURATION_TO_INTEGER_VALUE[selectedDuration] / 24;
+      const newNoteStart = info.beat;
+      const newNoteEnd = newNoteStart + newNoteDurationInBeats;
+
+      const hasOverlap = notes
+        .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
+        .some(n => {
+          const existingNoteDurationInBeats = DURATION_TO_INTEGER_VALUE[n.duration] / 24;
+          const existingNoteStart = n.beat;
+          const existingNoteEnd = existingNoteStart + existingNoteDurationInBeats;
+          return newNoteStart < existingNoteEnd && newNoteEnd > existingNoteStart;
+        });
+
+      if (hasOverlap) {
+        console.warn(`Cannot add note: overlaps with an existing note in the same voice.`);
         return;
       }
 
@@ -536,29 +542,27 @@ const App: React.FC = () => {
 
     const animate = () => {
       const elapsedTime = context.currentTime - playbackStartTimeRef.current;
-      const totalBeats = numMeasures * beatsPerMeasure;
-      const totalDuration = totalBeats * secondsPerBeat;
+      const secondsPerBeat = 60 / tempo;
+      const currentBeatValue = elapsedTime / secondsPerBeat;
 
-      let currentProgress = (elapsedTime % totalDuration) / totalDuration;
+      const totalBeats = numMeasures * beatsPerMeasure;
 
       if (loopRegion) {
         const loopStartBeat = loopRegion.startMeasure * beatsPerMeasure;
         const loopEndBeat = (loopRegion.endMeasure + 1) * beatsPerMeasure;
-        const loopDuration = (loopEndBeat - loopStartBeat) * secondsPerBeat;
-        const loopStartTime = loopStartBeat * secondsPerBeat;
+        const loopDurationBeats = loopEndBeat - loopStartBeat;
 
-        if (elapsedTime >= loopStartTime) {
-            const timeInLoop = elapsedTime - loopStartTime;
-            const currentProgressInLoop = (timeInLoop % loopDuration) / loopDuration;
-            currentProgress = (loopStartBeat * secondsPerBeat + currentProgressInLoop * loopDuration) / totalDuration;
+        if (currentBeatValue >= loopStartBeat) {
+            const beatInLoop = (currentBeatValue - loopStartBeat) % loopDurationBeats;
+            setCurrentBeat(loopStartBeat + beatInLoop);
         } else {
-            currentProgress = elapsedTime / totalDuration;
+            setCurrentBeat(currentBeatValue);
         }
+      } else {
+        setCurrentBeat(currentBeatValue);
       }
 
-      setPlaybackProgress(currentProgress);
-
-      if (elapsedTime >= totalDuration && !loopRegion) {
+      if (elapsedTime >= totalBeats * secondsPerBeat && !loopRegion) {
         stopPlayback();
       } else {
         animationFrameRef.current = requestAnimationFrame(animate);
@@ -570,12 +574,14 @@ const App: React.FC = () => {
   }, [currentPartition, isPlaying, stopPlayback, loopRegion]);
 
   const handleExport = () => {
-    const jsonString = JSON.stringify(partitions, null, 2);
+    if (!currentPartition) return;
+
+    const jsonString = JSON.stringify(currentPartition, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'drum-scores.json';
+    a.download = `${currentPartition.name}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -590,18 +596,37 @@ const App: React.FC = () => {
     reader.onload = (e) => {
       try {
         const result = e.target?.result;
-        if (typeof result !== 'string') throw new Error("File is not readable");
+        if (typeof result !== 'string') throw new Error("Le fichier n'est pas lisible");
         const loadedData = JSON.parse(result);
 
-        if (Array.isArray(loadedData) && loadedData.every(p => p.id && p.name && p.notes && p.timeSignature && p.tempo && p.numMeasures)) {
-          setPartitions(loadedData);
-          setCurrentPartitionId(loadedData[0]?.id || null);
+        if (Array.isArray(loadedData)) { // Handle array of partitions (old format)
+          if (loadedData.every(p => p.id && p.name && p.notes && p.timeSignature && p.tempo && p.numMeasures)) {
+            setPartitions(loadedData);
+            setCurrentPartitionId(loadedData[0]?.id || null);
+          } else {
+            throw new Error("Format de fichier invalide");
+          }
+        } else if (loadedData.id && loadedData.name) { // Handle single partition
+          const newPartition = loadedData as Partition;
+          // Check for ID conflict
+          if (partitions.some(p => p.id === newPartition.id)) {
+            if (window.confirm("Une partition avec le même ID existe déjà. Voulez-vous l'écraser ?")) {
+              setPartitions(partitions.map(p => p.id === newPartition.id ? newPartition : p));
+            } else {
+              // If user cancels, generate a new ID
+              newPartition.id = crypto.randomUUID();
+              setPartitions([...partitions, newPartition]);
+            }
+          } else {
+            setPartitions([...partitions, newPartition]);
+          }
+          setCurrentPartitionId(newPartition.id);
         } else {
-          throw new Error("Invalid file format");
+          throw new Error("Format de fichier invalide");
         }
       } catch (error) {
         console.error("Failed to load or parse file:", error);
-        alert("Error: Could not load scores. The file might be corrupted or in the wrong format.");
+        alert("Erreur : Impossible de charger les partitions. Le fichier est peut-être corrompu ou au mauvais format.");
       }
     };
     reader.readAsText(file);
@@ -715,7 +740,7 @@ const App: React.FC = () => {
           selectedDrumPart={selectedDrumPart}
           selectedDuration={selectedDuration}
           isPlaying={isPlaying}
-          playbackProgress={playbackProgress}
+          currentBeat={currentBeat}
           onPlayFromPosition={handlePlay}
           tempo={currentPartition.tempo}
           timeSignature={currentPartition.timeSignature}

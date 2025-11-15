@@ -61,7 +61,7 @@ export interface Note {
   beat: number;
   measure: number;
   stemDirection: 'up' | 'down';
-  voice: 1 | 2 | 3;
+  voice: 1 | 2 | 3 | 4;
   articulation?: Articulation;
 }
 
@@ -80,4 +80,9 @@ export interface Partition {
   tempo: number;
   numMeasures: number;
   textAnnotations: TextAnnotation[];
+}
+
+export interface PlaybackCursor {
+  x: number;
+  y: number;
 }
