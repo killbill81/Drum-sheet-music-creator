@@ -21,6 +21,7 @@ export enum NoteDuration {
   SIXTEENTH = 'sixteenth',
   THIRTY_SECOND = 'thirty_second',
   SIXTY_FOURTH = 'sixty_fourth',
+  EIGHTH_TRIPLET = 'eighth_triplet',
 }
 
 export enum Tool {
@@ -52,6 +53,7 @@ export enum Articulation {
   NONE = 'none',
   FLAM = 'flam',
   BUZZ_ROLL = 'buzz_roll',
+  ACCENT = 'accent',
 }
 
 export interface Note {

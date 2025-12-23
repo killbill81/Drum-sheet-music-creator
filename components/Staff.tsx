@@ -1,16 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion, TextAnnotation } from '../types';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Note as NoteType, DrumPart, NoteDuration, TimeSignature, PlaybackCursor, Tool, LoopRegion, TextAnnotation, Articulation } from '../types';
 import {
   STAFF_HEIGHT, STAFF_LINE_GAP,
   NUM_MEASURES, STAFF_Y_OFFSET, STAFF_X_OFFSET, CLEF_WIDTH,
   SUBDIVISIONS_PER_BEAT, DRUM_PART_Y_POSITIONS,
-  MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP
+  MEASURE_PADDING_HORIZONTAL, TIME_SIGNATURE_WIDTH, MEASURES_PER_LINE, STAFF_VERTICAL_GAP,
+  VEXFLOW_DRUM_MAPPING, VEXFLOW_CONFIG
 } from '../constants';
-import { Note } from './Note';
 import { PercussionClef, PlaybackArrowIcon, TrashIcon, AddLineIcon } from './Icons';
-import { BeamedNoteGroup, NotePosition } from './BeamedNoteGroup';
 import { DraggableText } from './DraggableText';
-import { Rest } from './Rest';
+import { Renderer, Stave, StaveNote, Beam, Voice, Formatter, Articulation as VexArticulation, Accidental } from 'vexflow';
 
 export interface StaffClickInfo {
   measureIndex: number;
@@ -45,65 +44,48 @@ interface StaffProps {
   selectedAnnotationId: string | null;
 }
 
-const groupNotesForBeaming = (notes: NoteType[]): NoteType[][] => {
-  if (!notes || notes.length === 0) return [];
-  const sortedNotes = [...notes].sort((a, b) => a.measure * 100 + a.beat - (b.measure * 100 + b.beat));
-  const groups: NoteType[][] = [];
-  let currentGroup: NoteType[] = [];
-
-  for (const note of sortedNotes) {
-    if (note.duration !== NoteDuration.EIGHTH && note.duration !== NoteDuration.SIXTEENTH && note.duration !== NoteDuration.THIRTY_SECOND) {
-      if (currentGroup.length > 0) groups.push(currentGroup);
-      groups.push([note]);
-      currentGroup = [];
-      continue;
-    }
-    if (currentGroup.length === 0) {
-      currentGroup.push(note);
-      continue;
-    }
-    const lastNote = currentGroup[currentGroup.length - 1];
-    const canBeBeamed = note.voice === lastNote.voice && note.measure === lastNote.measure && Math.floor(note.beat) === Math.floor(lastNote.beat);
-    if (canBeBeamed) {
-      currentGroup.push(note);
-    } else {
-      groups.push(currentGroup);
-      currentGroup = [note];
-    }
-  }
-  if (currentGroup.length > 0) groups.push(currentGroup);
-  return groups;
-}
+const DURATION_MAP: Record<NoteDuration, string> = {
+  [NoteDuration.WHOLE]: 'w',
+  [NoteDuration.HALF]: 'h',
+  [NoteDuration.QUARTER]: 'q',
+  [NoteDuration.EIGHTH]: '8',
+  [NoteDuration.SIXTEENTH]: '16',
+  [NoteDuration.THIRTY_SECOND]: '32',
+  [NoteDuration.SIXTY_FOURTH]: '64',
+  [NoteDuration.EIGHTH_TRIPLET]: '8', // Needs special handling for triplets later
+};
 
 const Staff: React.FC<StaffProps> = ({
-  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onUpdateAnnotationText, onInsertLine, onDeleteLine,
+  notes, numMeasures, textAnnotations, onStaffClick, onNoteClick, onAnnotationClick, onMeasureClick, onUpdateTextAnnotation, onUpdateAnnotationText, onInsertLine, onDeleteLine, onAddLine,
   selectedTool, selectedDrumPart, selectedDuration, isPlaying, currentBeat, tempo, timeSignature, loopRegion, loopStartMeasure, deleteStartMeasure, selectedAnnotationId
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
-  
+
   const beatsPerMeasure = timeSignature.top;
   const numLines = Math.ceil(numMeasures / MEASURES_PER_LINE);
 
   const layout = useMemo(() => {
     const measureWidths = Array.from({ length: numMeasures }).map((_, mIndex) => {
       const notesInMeasure = notes.filter(n => n.measure === mIndex);
-      if (notesInMeasure.length === 0) return 200;
-      const has32nds = notesInMeasure.some(n => n.duration === NoteDuration.THIRTY_SECOND);
-      const has16ths = notesInMeasure.some(n => n.duration === NoteDuration.SIXTEENTH);
-      if (has32nds) return 400;
-      if (has16ths) return 300;
-      if (notesInMeasure.length > 8) return 250;
-      return 200;
+      const isFirstInLine = mIndex % MEASURES_PER_LINE === 0;
+      let baseWidth = 220;
+      if (isFirstInLine) baseWidth += CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
+
+      const durations = notesInMeasure.map(n => n.duration);
+      if (durations.includes(NoteDuration.THIRTY_SECOND)) return baseWidth + 150;
+      if (durations.includes(NoteDuration.SIXTEENTH)) return baseWidth + 80;
+      if (notesInMeasure.length > 8) return baseWidth + 40;
+      return baseWidth;
     });
 
     const measureStartXs: number[][] = [];
     const lineTotalWidths: number[] = [];
-    const lineStartX = STAFF_X_OFFSET + CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
 
     for (let i = 0; i < numLines; i++) {
       measureStartXs[i] = [];
-      let currentX = lineStartX;
+      let currentX = STAFF_X_OFFSET;
       for (let j = 0; j < MEASURES_PER_LINE; j++) {
         const measureIndex = i * MEASURES_PER_LINE + j;
         if (measureIndex < numMeasures) {
@@ -116,64 +98,203 @@ const Staff: React.FC<StaffProps> = ({
 
     const totalWidth = Math.max(...lineTotalWidths) + STAFF_X_OFFSET;
     return { measureWidths, measureStartXs, lineTotalWidths, totalWidth };
-  }, [notes, numMeasures]);
+  }, [notes, numMeasures, numLines]);
 
-  const totalHeight = useMemo(() => numLines * STAFF_HEIGHT + (numLines - 1) * STAFF_VERTICAL_GAP + 20, [numLines]);
+  const totalHeight = useMemo(() => numLines * (STAFF_HEIGHT + STAFF_VERTICAL_GAP) + 20, [numLines]);
 
-  const { rests, musicNotes } = useMemo(() => {
-    const rests: NoteType[] = [];
-    const musicNotes: NoteType[] = [];
-    notes.forEach(note => {
-      if (note.part === DrumPart.REST) {
-        rests.push(note);
-      } else {
-        musicNotes.push(note);
-      }
-    });
-    return { rests, musicNotes };
-  }, [notes]);
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  const noteGroups = useMemo(() => {
-    const voice1Notes = musicNotes.filter(n => n.voice === 1);
-    const voice2Notes = musicNotes.filter(n => n.voice === 2);
-    const voice3Notes = musicNotes.filter(n => n.voice === 3);
-    return [...groupNotesForBeaming(voice1Notes), ...groupNotesForBeaming(voice2Notes), ...groupNotesForBeaming(voice3Notes)];
-  }, [musicNotes]);
-  
-  const getPositionFromMouseEvent = (e: React.MouseEvent<SVGSVGElement>) => {
-      const svg = e.currentTarget;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const { x, y } = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    // Clear previous rendering
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild);
+    }
 
-      const lineIndex = Math.floor(y / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
-      if (lineIndex < 0 || lineIndex >= numLines) return null;
+    const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
+    renderer.resize(layout.totalWidth, totalHeight);
+    const context = renderer.getContext();
+    context.setFont('Arial', 10);
 
-      const lineMeasureStartXs = layout.measureStartXs[lineIndex];
-      if (!lineMeasureStartXs) return null;
+    for (let lineIndex = 0; lineIndex < numLines; lineIndex++) {
+      const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP) + STAFF_Y_OFFSET;
+      const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE })
+        .map((_, i) => lineIndex * MEASURES_PER_LINE + i)
+        .filter(m => m < numMeasures);
 
-      let measureInLine = lineMeasureStartXs.findIndex((startX, i) => {
-        const measureIndex = lineIndex * MEASURES_PER_LINE + i;
-        const nextStartX = lineMeasureStartXs[i+1] || (startX + layout.measureWidths[measureIndex]);
-        return x >= startX && x < nextStartX;
+      measuresOnThisLine.forEach((mIndex, i) => {
+        const x = layout.measureStartXs[lineIndex][i];
+        const width = layout.measureWidths[mIndex];
+        const stave = new Stave(x, lineYOffset, width);
+
+        if (i === 0) {
+          stave.addClef('percussion');
+          stave.addTimeSignature(`${timeSignature.top}/${timeSignature.bottom}`);
+        }
+
+        stave.setContext(context).draw();
+
+        // Render notes for this measure
+        const notesInMeasure = notes.filter(n => n.measure === mIndex).sort((a, b) => a.beat - b.beat);
+        if (notesInMeasure.length > 0) {
+          // VexFlow needs voices. To simplify, we group by beat and voice.
+          // For now, let's just group everything in one voice and use chords if multiple notes at same beat.
+          const beatsGroups = new Map<number, NoteType[]>();
+          notesInMeasure.forEach(note => {
+            const beat = note.beat;
+            if (!beatsGroups.has(beat)) beatsGroups.set(beat, []);
+            beatsGroups.get(beat)!.push(note);
+          });
+
+          const staveNotes: StaveNote[] = [];
+          const sortedBeats = Array.from(beatsGroups.keys()).sort((a, b) => a - b);
+
+          sortedBeats.forEach(beat => {
+            const beatNotes = beatsGroups.get(beat)!;
+            const vfDuration = DURATION_MAP[beatNotes[0].duration] || 'q';
+
+            const keys = beatNotes.map(n => VEXFLOW_DRUM_MAPPING[n.part]?.keys[0] || 'c/5');
+            const noteheads = beatNotes.map(n => VEXFLOW_DRUM_MAPPING[n.part]?.notehead || 'normal');
+
+            const staveNote = new StaveNote({
+              keys: keys,
+              duration: vfDuration,
+              clef: 'percussion',
+            });
+
+            // Set noteheads
+            noteheads.forEach((head, index) => {
+              if (head !== 'normal') {
+                // In VexFlow 5, use glyph or setNoteHead. 
+                // Using a known-working way if setNoteHeadGlyph is missing.
+                (staveNote as any).setGlyph(index, { code: head === 'x' ? 'v3f' : (head === 'open_x' ? 'v3e' : 'v0') });
+              }
+            });
+
+            // Highlights
+            if (isPlaying && currentBeat !== null) {
+              const measureStartBeat = mIndex * beatsPerMeasure;
+              const absoluteBeat = measureStartBeat + beat;
+              // Highlighting logic: if the current beat is within the duration of this note
+              const noteDuration = 4 / parseInt(vfDuration.replace('q', '4').replace('h', '2').replace('w', '1') || '4');
+              if (currentBeat >= absoluteBeat && currentBeat < absoluteBeat + noteDuration) {
+                staveNote.setStyle({ fillStyle: VEXFLOW_CONFIG.HIGHLIGHT_COLOR, strokeStyle: VEXFLOW_CONFIG.HIGHLIGHT_COLOR });
+              }
+            }
+
+            // Articulations
+            beatNotes.forEach((n, index) => {
+              if (n.articulation === Articulation.ACCENT) {
+                staveNote.addModifier(new VexArticulation('a>').setPosition(3), index); // 3 is ABOVE, VexFlow constant might vary
+              }
+              if (n.articulation === Articulation.FLAM) {
+                // Flam is tricky in VexFlow, usually a grace note. Skip for now or use simplified indicator.
+              }
+            });
+
+            staveNotes.push(staveNote);
+
+            // Store note ID for interaction
+            // VexFlow 5 allows attaching data or using custom attributes on SVG
+          });
+
+          if (staveNotes.length > 0) {
+            const voice = new Voice({
+              numBeats: timeSignature.top,
+              beatValue: timeSignature.bottom,
+            }).setMode(Voice.Mode.SOFT);
+
+            voice.addTickables(staveNotes);
+
+            // Beaming logic by beat - MUST BE DONE BEFORE voice.draw to hide flags
+            const groups: StaveNote[][] = [];
+            let currentBeamNotes: StaveNote[] = [];
+            let lastBeatFloor = -1;
+
+            staveNotes.forEach((sn, index) => {
+              const beat = sortedBeats[index];
+              const beatFloor = Math.floor(beat);
+              const duration = sn.getDuration();
+              const isBeameable = duration !== 'q' && duration !== 'h' && duration !== 'w';
+
+              if (isBeameable && beatFloor === lastBeatFloor) {
+                currentBeamNotes.push(sn);
+              } else {
+                if (currentBeamNotes.length > 1) {
+                  groups.push(currentBeamNotes);
+                }
+                currentBeamNotes = isBeameable ? [sn] : [];
+                lastBeatFloor = beatFloor;
+              }
+            });
+            if (currentBeamNotes.length > 1) {
+              groups.push(currentBeamNotes);
+            }
+
+            // Create beams
+            const beams = groups.map(group => new Beam(group));
+
+            // In VexFlow 5, we can link beams to notes to help with flag suppression
+            // but usually Beam.draw(context) handles it if called correctly.
+
+            // Match formatting width with noteAreaWidth from getPositionFromMouseEvent
+            const isFirstInLine = i === 0;
+            const noteAreaStart = isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL;
+            const noteAreaWidth = width - noteAreaStart - MEASURE_PADDING_HORIZONTAL;
+
+            new Formatter().joinVoices([voice]).format([voice], noteAreaWidth);
+
+            // Draw stave, then voice (notes), then beams
+            voice.draw(context, stave);
+            beams.forEach(b => b.setContext(context).draw());
+          }
+        }
       });
+    }
 
-      if (measureInLine === -1) return null;
+  }, [notes, layout, numLines, numMeasures, timeSignature, totalHeight, isPlaying, currentBeat, beatsPerMeasure]);
 
-      const measureIndex = lineIndex * MEASURES_PER_LINE + measureInLine;
-      if (measureIndex >= numMeasures) return null;
+  const getPositionFromMouseEvent = (e: React.MouseEvent<HTMLDivElement | SVGSVGElement>) => {
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-      const xInMeasure = x - lineMeasureStartXs[measureInLine];
-      const currentMeasureWidth = layout.measureWidths[measureIndex];
-      const paddedXInMeasure = xInMeasure - MEASURE_PADDING_HORIZONTAL;
-      const noteAreaWidth = currentMeasureWidth - 2 * MEASURE_PADDING_HORIZONTAL;
-      if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
+    const lineIndex = Math.floor(y / (STAFF_HEIGHT + STAFF_VERTICAL_GAP));
+    if (lineIndex < 0 || lineIndex >= numLines) return null;
 
-      return { x, y, lineIndex, measureIndex, currentMeasureWidth, xInMeasure, paddedXInMeasure, noteAreaWidth };
+    const lineMeasureStartXs = layout.measureStartXs[lineIndex];
+    if (!lineMeasureStartXs) return null;
+
+    let measureInLine = lineMeasureStartXs.findIndex((startX, i) => {
+      const measureIndex = lineIndex * MEASURES_PER_LINE + i;
+      const nextStartX = lineMeasureStartXs[i + 1] || (startX + layout.measureWidths[measureIndex]);
+      return x >= startX && x < nextStartX;
+    });
+
+    if (measureInLine === -1) return null;
+
+    const measureIndex = lineIndex * MEASURES_PER_LINE + measureInLine;
+    if (measureIndex >= numMeasures) return null;
+
+    const xInMeasure = x - lineMeasureStartXs[measureInLine];
+    const isFirstInLine = measureInLine === 0;
+
+    let noteAreaStart = MEASURE_PADDING_HORIZONTAL;
+    if (isFirstInLine) {
+      noteAreaStart += CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
+    }
+
+    const currentMeasureWidth = layout.measureWidths[measureIndex];
+    const paddedXInMeasure = xInMeasure - noteAreaStart;
+    const noteAreaWidth = currentMeasureWidth - noteAreaStart - MEASURE_PADDING_HORIZONTAL;
+
+    if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
+
+    return { x, y, lineIndex, measureIndex, currentMeasureWidth, xInMeasure, paddedXInMeasure, noteAreaWidth };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isPlaying) return;
     const pos = getPositionFromMouseEvent(e);
 
@@ -186,7 +307,7 @@ const Staff: React.FC<StaffProps> = ({
         setHoverPosition(null);
         return;
       }
-      
+
       const { measureIndex, paddedXInMeasure, noteAreaWidth, lineIndex } = pos;
       const beatInMeasure = (paddedXInMeasure / noteAreaWidth) * beatsPerMeasure;
       const beatUnit = timeSignature.bottom === 8 ? 2 : 1;
@@ -196,22 +317,27 @@ const Staff: React.FC<StaffProps> = ({
       else if (selectedDuration === NoteDuration.THIRTY_SECOND) subdivision = 8 * beatUnit;
 
       const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
-      
+
       const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
       const beatWidth = noteAreaWidth / beatsPerMeasure;
-      const beatX = layout.measureStartXs[lineIndex][measureIndex % MEASURES_PER_LINE] + MEASURE_PADDING_HORIZONTAL + quantizedBeat * beatWidth;
+
+      const isFirstInLine = (pos.measureIndex % MEASURES_PER_LINE) === 0;
+      const noteAreaStart = isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL;
+      const beatX = layout.measureStartXs[lineIndex][pos.measureIndex % MEASURES_PER_LINE] + noteAreaStart + quantizedBeat * beatWidth;
       const partY = lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart];
 
       setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
     }
   };
 
-  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isPlaying) return;
-    
+
+    // Check if clicked a note (VexFlow SVG element)
+    // For now we use our grid.
     const pos = getPositionFromMouseEvent(e);
-    if(!pos) return;
-    
+    if (!pos) return;
+
     if (selectedTool === Tool.LOOP || selectedTool === Tool.COPY || selectedTool === Tool.DELETE) {
       onMeasureClick(pos.measureIndex);
     } else {
@@ -224,169 +350,115 @@ const Staff: React.FC<StaffProps> = ({
       else if (selectedDuration === NoteDuration.THIRTY_SECOND) subdivision = 8 * beatUnit;
 
       const quantizedBeat = Math.max(0, Math.round(beatInMeasure * subdivision) / subdivision);
-      
+
+      // Check for erasure (click near existing note)
+      if (selectedTool === Tool.ERASER) {
+        const notesInMeasure = notes.filter(n => n.measure === measureIndex);
+        const clickedNote = notesInMeasure.find(n => Math.abs(n.beat - quantizedBeat) < 0.1);
+        if (clickedNote) {
+          onNoteClick(clickedNote.id);
+          return;
+        }
+      }
+
       onStaffClick({ measureIndex, beat: quantizedBeat, x, y });
     }
   };
-  
+
   return (
-    <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 relative">
-        <div className="absolute bottom-4 right-4 no-print">
-            <button onClick={() => onAddLine()} className="p-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition">
-                <AddLineIcon />
-            </button>
-        </div>
+    <div
+      className="w-full overflow-x-auto bg-white rounded-lg shadow-xl relative"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => { setHoverPosition(null); setHoverMeasure(null); }}
+      onClick={handleClick}
+      style={{ background: VEXFLOW_CONFIG.BACKGROUND_COLOR }}
+    >
+      <div className="absolute bottom-4 right-4 no-print">
+        <button onClick={() => onAddLine()} className="p-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition">
+          <AddLineIcon />
+        </button>
+      </div>
 
-        <svg
-            width={layout.totalWidth}
-            height={totalHeight}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={() => { setHoverPosition(null); setHoverMeasure(null); }}
-            onClick={handleClick}
-            className="select-none text-black dark:text-white"
-        >
-          {Array.from({ length: numLines }).map((_, lineIndex) => {
-            const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-            const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < numMeasures);
+      {/* VexFlow Container */}
+      <div ref={containerRef} className="select-none" style={{ minWidth: layout.totalWidth, minHeight: totalHeight }} />
 
-            return (
-              <g key={`line-${lineIndex}`} className="staff-line-group">
-                {/* Staff lines */}
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <line
-                        key={i} x1={STAFF_X_OFFSET} y1={lineYOffset + STAFF_Y_OFFSET + i * STAFF_LINE_GAP}
-                        x2={layout.lineTotalWidths[lineIndex]} y2={lineYOffset + STAFF_Y_OFFSET + i * STAFF_LINE_GAP}
-                        stroke="currentColor" strokeWidth="1"
-                    />
-                ))}
-                
-                <PercussionClef x={STAFF_X_OFFSET} y={lineYOffset + STAFF_Y_OFFSET - 2 * STAFF_LINE_GAP + 2} />
-                
-                {/* Time Signature */}
-                <g transform={`translate(${STAFF_X_OFFSET + CLEF_WIDTH + (TIME_SIGNATURE_WIDTH / 2)}, ${lineYOffset + STAFF_Y_OFFSET})`} className="font-serif font-bold text-4xl">
-                  <text x="0" y={STAFF_LINE_GAP * 1.5} textAnchor="middle" dominantBaseline="middle">{timeSignature.top}</text>
-                  <text x="0" y={STAFF_LINE_GAP * 3.5} textAnchor="middle" dominantBaseline="middle">{timeSignature.bottom}</text>
-                </g>
-
-                {/* Measure lines */}
-                {measuresOnThisLine.map((m, i) => {
+      {/* Interaction Overlay (Annotations and Cursor) */}
+      <svg
+        className="absolute top-0 left-0 pointer-events-none select-none"
+        width={layout.totalWidth}
+        height={totalHeight}
+        style={{ pointerEvents: 'none' }}
+      >
+        {/* Loop Region Highlight */}
+        {loopRegion && Array.from({ length: numLines }).map((_, lineIndex) => {
+          const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+          const measuresOnThisLine = Array.from({ length: MEASURES_PER_LINE }).map((_, i) => lineIndex * MEASURES_PER_LINE + i).filter(m => m < numMeasures);
+          return (
+            <g key={`loop-line-${lineIndex}`}>
+              {measuresOnThisLine.map((m, i) => {
+                if (m >= loopRegion.startMeasure && m <= loopRegion.endMeasure) {
                   const x = layout.measureStartXs[lineIndex][i];
-                  return (
-                    <line
-                        key={i}
-                        x1={x} y1={lineYOffset + STAFF_Y_OFFSET}
-                        x2={x} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
-                        stroke="currentColor" strokeWidth={i === 0 ? '2' : '1'}
-                    />
-                  );
-                })}
+                  return <rect key={`loop-highlight-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP} width={layout.measureWidths[m]} height={STAFF_LINE_GAP * 6} fill="rgba(59, 130, 246, 0.1)" />
+                }
+                return null;
+              })}
+            </g>
+          );
+        })}
 
-                <line
-                  x1={layout.lineTotalWidths[lineIndex]} y1={lineYOffset + STAFF_Y_OFFSET}
-                  x2={layout.lineTotalWidths[lineIndex]} y2={lineYOffset + STAFF_Y_OFFSET + 4 * STAFF_LINE_GAP}
-                  stroke="currentColor" strokeWidth="2"
-                />
+        {/* Hover effect for measure selection */}
+        {(hoverMeasure !== null || loopStartMeasure !== null || deleteStartMeasure !== null) &&
+          [hoverMeasure, loopStartMeasure, deleteStartMeasure].filter(m => m !== null).map((m, idx) => {
+            const measureIndex = m as number;
+            const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
+            const measureInLine = measureIndex % MEASURES_PER_LINE;
+            const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+            const x = layout.measureStartXs[lineIndex][measureInLine];
+            return <rect key={`hover-${idx}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.1)" />
+          })
+        }
 
-                {/* Loop Region Highlight */}
-                {loopRegion && (
-                  <g>
-                    {measuresOnThisLine.map((m, i) => {
-                      if (m >= loopRegion.startMeasure && m <= loopRegion.endMeasure) {
-                        const x = layout.measureStartXs[lineIndex][i];
-                        return <rect key={`loop-highlight-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP} width={layout.measureWidths[m]} height={STAFF_LINE_GAP * 6} fill="rgba(59, 130, 246, 0.15)" className="pointer-events-none" />
-                      }
-                      return null;
-                    })}
-                  </g>
-                )}
-              </g>
-            );
-          })}
+        {textAnnotations.map(ann => (
+          <DraggableText key={ann.id} annotation={ann} onUpdate={onUpdateTextAnnotation} onUpdateText={onUpdateAnnotationText} onClick={onAnnotationClick} isSelected={ann.id === selectedAnnotationId} />
+        ))}
 
-            {/* Hover effect for measure selection */}
-            {(hoverMeasure !== null || loopStartMeasure !== null || deleteStartMeasure !== null) &&
-              [hoverMeasure, loopStartMeasure, deleteStartMeasure].filter(m => m !== null).map(m => {
-                const measureIndex = m as number;
-                const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
-                const measureInLine = measureIndex % MEASURES_PER_LINE;
-                const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-                const x = layout.measureStartXs[lineIndex][measureInLine];
-                return <rect key={`hover-${m}`} x={x} y={lineYOffset + STAFF_Y_OFFSET} width={layout.measureWidths[measureIndex]} height={STAFF_LINE_GAP * 4} fill="rgba(37, 99, 235, 0.2)" className="pointer-events-none" />
-              })
-            }
+        {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.3)" />}
 
-            {/* Render Notes */}
-            {noteGroups.map((group, index) => {
-              const lineIndex = Math.floor(group[0].measure / MEASURES_PER_LINE);
-              const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-              
-              const calculateX = (note: NoteType) => {
-                const measureIndex = note.measure;
-                const measureInLine = measureIndex % MEASURES_PER_LINE;
-                const measureStart = layout.measureStartXs[lineIndex][measureInLine];
-                const beatWidth = (layout.measureWidths[measureIndex] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
-                return measureStart + MEASURE_PADDING_HORIZONTAL + note.beat * beatWidth;
-              };
-              const calculateY = (note: NoteType) => lineYOffset + DRUM_PART_Y_POSITIONS[note.part];
+        {/* Playback Cursor */}
+        {isPlaying && currentBeat !== null && (() => {
+          const measureIndex = Math.floor(currentBeat / beatsPerMeasure);
+          if (measureIndex >= numMeasures) return null;
 
-              if (group.length > 1) {
-                const notePositions: NotePosition[] = group.map(note => ({ note, x: calculateX(note), y: calculateY(note) }));
-                return <BeamedNoteGroup key={`group-${index}`} notePositions={notePositions} onNoteClick={onNoteClick} selectedTool={selectedTool} />;
-              }
-              if (group.length === 1) {
-                const note = group[0];
-                return <Note key={note.id} note={note} x={calculateX(note)} y={calculateY(note)} onClick={onNoteClick} selectedTool={selectedTool} />;
-              }
-              return null;
-            })}
+          const beatInMeasure = currentBeat % beatsPerMeasure;
+          const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
+          const measureInLine = measureIndex % MEASURES_PER_LINE;
 
-            {/* Render Rests */}
-            {rests.map(rest => {
-              const lineIndex = Math.floor(rest.measure / MEASURES_PER_LINE);
-              const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-              const measureInLine = rest.measure % MEASURES_PER_LINE;
-              const measureStart = layout.measureStartXs[lineIndex][measureInLine];
-              const beatWidth = (layout.measureWidths[rest.measure] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
-              const x = measureStart + MEASURE_PADDING_HORIZONTAL + rest.beat * beatWidth;
-              return <Rest key={rest.id} note={rest} x={x} y={lineYOffset} onClick={onNoteClick} />;
-            })}
+          if (lineIndex >= layout.measureStartXs.length || measureInLine >= layout.measureStartXs[lineIndex].length) return null;
 
+          const measureStart = layout.measureStartXs[lineIndex][measureInLine];
 
-            {textAnnotations.map(ann => (
-                <DraggableText key={ann.id} annotation={ann} onUpdate={onUpdateTextAnnotation} onUpdateText={onUpdateAnnotationText} onClick={onAnnotationClick} isSelected={ann.id === selectedAnnotationId} />
-            ))}
-          
-            {hoverPosition && !isPlaying && selectedTool === Tool.PEN && <circle cx={hoverPosition.x} cy={hoverPosition.y} r="5" fill="rgba(37, 99, 235, 0.5)" />}
+          const isFirstInLine = measureInLine === 0;
+          const noteAreaStart = isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL;
+          const noteAreaWidth = layout.measureWidths[measureIndex] - noteAreaStart - MEASURE_PADDING_HORIZONTAL;
 
-            {/* Playback Cursor */}
-            {isPlaying && currentBeat !== null && (() => {
-              const measureIndex = Math.floor(currentBeat / beatsPerMeasure);
-              if (measureIndex >= numMeasures) return null;
+          const beatWidth = noteAreaWidth / beatsPerMeasure;
+          const x = measureStart + noteAreaStart + beatInMeasure * beatWidth;
+          const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
+          const staffStartY = lineYOffset + STAFF_Y_OFFSET;
 
-              const beatInMeasure = currentBeat % beatsPerMeasure;
-              const lineIndex = Math.floor(measureIndex / MEASURES_PER_LINE);
-              const measureInLine = measureIndex % MEASURES_PER_LINE;
-
-              if (lineIndex >= layout.measureStartXs.length || measureInLine >= layout.measureStartXs[lineIndex].length) return null;
-
-              const measureStart = layout.measureStartXs[lineIndex][measureInLine];
-              const beatWidth = (layout.measureWidths[measureIndex] - MEASURE_PADDING_HORIZONTAL * 2) / beatsPerMeasure;
-              const x = measureStart + MEASURE_PADDING_HORIZONTAL + beatInMeasure * beatWidth;
-              const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
-
-              return (
-                <line
-                  x1={x}
-                  y1={lineYOffset + STAFF_Y_OFFSET - STAFF_LINE_GAP}
-                  x2={x}
-                  y2={lineYOffset + STAFF_Y_OFFSET + 5 * STAFF_LINE_GAP}
-                  stroke="rgba(255, 50, 50, 0.8)"
-                  strokeWidth="2"
-                  className="pointer-events-none"
-                />
-              );
-            })()}
-        </svg>
+          return (
+            <line
+              x1={x}
+              y1={staffStartY - STAFF_LINE_GAP}
+              x2={x}
+              y2={staffStartY + 5 * STAFF_LINE_GAP}
+              stroke={VEXFLOW_CONFIG.HIGHLIGHT_COLOR}
+              strokeWidth="2"
+              strokeOpacity="0.8"
+            />
+          );
+        })()}
+      </svg>
     </div>
   );
 };

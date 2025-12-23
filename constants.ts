@@ -9,8 +9,8 @@ export const STAFF_VERTICAL_GAP = 80; // Space between staff lines
 export const MEASURE_WIDTH = 300;
 export const MEASURE_PADDING_HORIZONTAL = 15;
 export const SUBDIVISIONS_PER_BEAT = 4; // 16th note precision
-export const STAFF_Y_OFFSET = 50;
-export const STAFF_X_OFFSET = 20;
+export const STAFF_Y_OFFSET = 60;
+export const STAFF_X_OFFSET = 40;
 export const CLEF_WIDTH = 50;
 export const TIME_SIGNATURE_WIDTH = 30;
 
@@ -18,18 +18,41 @@ export const TIME_SIGNATURE_WIDTH = 30;
 const L = STAFF_LINE_GAP;
 export const DRUM_PART_Y_POSITIONS: Record<DrumPart, number> = {
   // French Notation from PDF
-  [DrumPart.CRASH_CYMBAL]: STAFF_Y_OFFSET - 1.5 * L, // Space above ledger line
-  [DrumPart.RIDE_CYMBAL]: STAFF_Y_OFFSET - L, // Ledger line above
-  [DrumPart.HI_HAT_OPEN]: STAFF_Y_OFFSET - 0.5 * L, // Space above staff
-  [DrumPart.HI_HAT_CLOSED]: STAFF_Y_OFFSET - 0.5 * L, // Space above staff
-  [DrumPart.HIGH_TOM]: STAFF_Y_OFFSET + 0.5 * L, // Top space
-  [DrumPart.MID_TOM]: STAFF_Y_OFFSET + L, // 2nd line
-  [DrumPart.SNARE]: STAFF_Y_OFFSET + 1.5 * L, // 2nd space
-  [DrumPart.SIDESTICK]: STAFF_Y_OFFSET + 1.5 * L, // 2nd space
-  [DrumPart.FLOOR_TOM]: STAFF_Y_OFFSET + 2.5 * L, // 3rd space
-  [DrumPart.BASS_DRUM]: STAFF_Y_OFFSET + 4.5 * L, // Space below staff
-  [DrumPart.HI_HAT_PEDAL]: STAFF_Y_OFFSET + 4.5 * L, // Space below staff
-  [DrumPart.REST]: STAFF_Y_OFFSET + 2 * L, // Middle line, for placement logic
+  [DrumPart.CRASH_CYMBAL]: STAFF_Y_OFFSET - 1.5 * L,
+  [DrumPart.RIDE_CYMBAL]: STAFF_Y_OFFSET - L,
+  [DrumPart.HI_HAT_OPEN]: STAFF_Y_OFFSET - 0.5 * L,
+  [DrumPart.HI_HAT_CLOSED]: STAFF_Y_OFFSET - 0.5 * L,
+  [DrumPart.HIGH_TOM]: STAFF_Y_OFFSET + 0.5 * L,
+  [DrumPart.MID_TOM]: STAFF_Y_OFFSET + L,
+  [DrumPart.SNARE]: STAFF_Y_OFFSET + 2 * L,
+  [DrumPart.SIDESTICK]: STAFF_Y_OFFSET + 1.5 * L,
+  [DrumPart.FLOOR_TOM]: STAFF_Y_OFFSET + 3 * L,
+  [DrumPart.BASS_DRUM]: STAFF_Y_OFFSET + 4 * L,
+  [DrumPart.HI_HAT_PEDAL]: STAFF_Y_OFFSET + 4.5 * L,
+  [DrumPart.REST]: STAFF_Y_OFFSET + 2 * L,
+};
+
+// VexFlow mapping
+export const VEXFLOW_DRUM_MAPPING: Record<DrumPart, { keys: string[]; notehead?: string }> = {
+  [DrumPart.BASS_DRUM]: { keys: ['f/4'] },
+  [DrumPart.SNARE]: { keys: ['b/4'] },
+  [DrumPart.SIDESTICK]: { keys: ['c/5'], notehead: 'x' },
+  [DrumPart.HIGH_TOM]: { keys: ['e/5'] },
+  [DrumPart.MID_TOM]: { keys: ['d/5'] },
+  [DrumPart.FLOOR_TOM]: { keys: ['a/4'] },
+  [DrumPart.HI_HAT_CLOSED]: { keys: ['g/5'], notehead: 'x' },
+  [DrumPart.HI_HAT_OPEN]: { keys: ['g/5'], notehead: 'open_x' },
+  [DrumPart.HI_HAT_PEDAL]: { keys: ['d/4'], notehead: 'x' },
+  [DrumPart.CRASH_CYMBAL]: { keys: ['a/5'], notehead: 'x' },
+  [DrumPart.RIDE_CYMBAL]: { keys: ['f/5'], notehead: 'x' },
+  [DrumPart.REST]: { keys: ['b/4'], notehead: 'r' },
+};
+
+export const VEXFLOW_CONFIG = {
+  BACKGROUND_COLOR: '#ffffff',
+  HIGHLIGHT_COLOR: '#0891b2',
+  STAFF_WIDTH: 250,
+  STAFF_GAP: 120,
 };
 
 // Voice assignment for stem direction
@@ -68,13 +91,13 @@ export const DRUM_PART_NOTE_HEAD: Record<DrumPart, NoteHeadType> = {
 
 export const NOTE_TYPE_TO_FRACTIONAL_VALUE: Record<NoteDuration, number> = {
   [NoteDuration.WHOLE]: 1,
-  [NoteDuration.HALF]: 1/2,
-  [NoteDuration.QUARTER]: 1/4,
-  [NoteDuration.EIGHTH]: 1/8,
-  [NoteDuration.SIXTEENTH]: 1/16,
-  [NoteDuration.THIRTY_SECOND]: 1/32,
-  [NoteDuration.SIXTY_FOURTH]: 1/64,
-  [NoteDuration.EIGHTH_TRIPLET]: 1/12,
+  [NoteDuration.HALF]: 1 / 2,
+  [NoteDuration.QUARTER]: 1 / 4,
+  [NoteDuration.EIGHTH]: 1 / 8,
+  [NoteDuration.SIXTEENTH]: 1 / 16,
+  [NoteDuration.THIRTY_SECOND]: 1 / 32,
+  [NoteDuration.SIXTY_FOURTH]: 1 / 64,
+  [NoteDuration.EIGHTH_TRIPLET]: 1 / 12,
 };
 
 export const DURATION_TO_INTEGER_VALUE: Record<NoteDuration, number> = {

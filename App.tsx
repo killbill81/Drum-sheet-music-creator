@@ -4,6 +4,9 @@ import Staff, { StaffClickInfo } from './components/Staff';
 import { Toolbar } from './components/Toolbar';
 import { DRUM_PART_VOICE, MEASURE_PADDING_HORIZONTAL, DURATION_TO_INTEGER_VALUE, STAFF_HEIGHT, STAFF_VERTICAL_GAP, STAFF_LINE_GAP, DRUM_PART_Y_POSITIONS, MEASURES_PER_LINE, STAFF_Y_OFFSET } from './constants';
 import { initializeAudio, playSoundForPart } from './audio';
+import { jsPDF } from 'jspdf';
+import { svg2pdf } from 'svg2pdf.js';
+import MidiWriter from 'midi-writer-js';
 
 const App: React.FC = () => {
   const [partitions, setPartitions] = useState<Partition[]>([]);
@@ -20,7 +23,7 @@ const App: React.FC = () => {
   const [loopStartMeasure, setLoopStartMeasure] = useState<number | null>(null);
   const [deleteStartMeasure, setDeleteStartMeasure] = useState<number | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
-  
+
   const [copiedMeasureNotes, setCopiedMeasureNotes] = useState<Note[] | null>(null);
   const [copyStep, setCopyStep] = useState<'copy' | 'paste' | null>(null);
 
@@ -225,7 +228,7 @@ const App: React.FC = () => {
 
   const handleUpdateTextAnnotation = (id: string, x: number, y: number) => {
     if (!currentPartition) return;
-    const newAnnotations = currentPartition.textAnnotations.map(ann => 
+    const newAnnotations = currentPartition.textAnnotations.map(ann =>
       ann.id === id ? { ...ann, x, y } : ann
     );
     updateCurrentPartition({ textAnnotations: newAnnotations });
@@ -233,7 +236,7 @@ const App: React.FC = () => {
 
   const handleUpdateAnnotationText = (annotationId: string, text: string) => {
     if (!currentPartition) return;
-    const newAnnotations = currentPartition.textAnnotations.map(ann => 
+    const newAnnotations = currentPartition.textAnnotations.map(ann =>
       ann.id === annotationId ? { ...ann, text } : ann
     );
     updateCurrentPartition({ textAnnotations: newAnnotations });
@@ -311,7 +314,7 @@ const App: React.FC = () => {
     scheduledSourcesRef.current.forEach(source => {
       try {
         source.stop(0);
-      } catch (e) {}
+      } catch (e) { }
     });
     scheduledSourcesRef.current = [];
 
@@ -353,6 +356,13 @@ const App: React.FC = () => {
       const newNoteDurationInBeats = DURATION_TO_INTEGER_VALUE[selectedDuration] / 24;
       const newNoteStart = info.beat;
       const newNoteEnd = newNoteStart + newNoteDurationInBeats;
+
+      // Limit based on time signature
+      const measureCapacityInBeats = 4 * (timeSignature.top / timeSignature.bottom);
+      if (newNoteEnd > measureCapacityInBeats + 0.001) { // Add small epsilon for float precision
+        console.warn(`Cannot add note: exceeds measure capacity.`);
+        return;
+      }
 
       const hasOverlap = notes
         .filter(n => n.measure === info.measureIndex && n.voice === voice && n.id !== noteToReplace?.id)
@@ -428,7 +438,7 @@ const App: React.FC = () => {
       setSelectedTool(Tool.LOOP);
     }
   };
-  
+
   const handleToolSelect = (tool: Tool) => {
     if (tool === Tool.COPY) {
       setSelectedTool(Tool.COPY);
@@ -516,8 +526,8 @@ const App: React.FC = () => {
 
     const notesToPlay = notes;
     if (notesToPlay.length === 0 && !loopRegion) {
-        stopPlayback();
-        return;
+      stopPlayback();
+      return;
     }
 
     setIsPlaying(true);
@@ -526,7 +536,7 @@ const App: React.FC = () => {
     playbackStartTimeRef.current = audioContextStartTime - playbackOffset;
     pauseTimeRef.current = 0;
 
-    scheduledSourcesRef.current.forEach(source => { try { source.stop(0); } catch(e) {} });
+    scheduledSourcesRef.current.forEach(source => { try { source.stop(0); } catch (e) { } });
     scheduledSourcesRef.current = [];
 
     const secondsPerBeat = 60 / tempo;
@@ -553,10 +563,10 @@ const App: React.FC = () => {
         const loopDurationBeats = loopEndBeat - loopStartBeat;
 
         if (currentBeatValue >= loopStartBeat) {
-            const beatInLoop = (currentBeatValue - loopStartBeat) % loopDurationBeats;
-            setCurrentBeat(loopStartBeat + beatInLoop);
+          const beatInLoop = (currentBeatValue - loopStartBeat) % loopDurationBeats;
+          setCurrentBeat(loopStartBeat + beatInLoop);
         } else {
-            setCurrentBeat(currentBeatValue);
+          setCurrentBeat(currentBeatValue);
         }
       } else {
         setCurrentBeat(currentBeatValue);
@@ -633,7 +643,117 @@ const App: React.FC = () => {
     event.target.value = '';
   };
 
-  const handleExportPdf = () => window.print();
+  const handleExportPdf = async () => {
+    if (!currentPartition) return;
+
+    const svgElement = document.querySelector('svg');
+    if (!svgElement) {
+      alert("SVG non trouvé");
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [svgElement.width.baseVal.value + 40, svgElement.height.baseVal.value + 40]
+    });
+
+    try {
+      await svg2pdf(svgElement, doc, {
+        x: 20,
+        y: 20,
+        width: svgElement.width.baseVal.value,
+        height: svgElement.height.baseVal.value
+      });
+      doc.save(`${currentPartition.name}.pdf`);
+    } catch (e) {
+      console.error("PDF Export failed:", e);
+      alert("L'export PDF a échoué. Essai avec l'impression système...");
+      window.print();
+    }
+  };
+
+  const handleExportMidi = () => {
+    if (!currentPartition) return;
+
+    const track = new MidiWriter.Track();
+    track.setTempo(currentPartition.tempo);
+    track.addTrackName(currentPartition.name);
+
+    // Map DrumPart to MIDI pitches
+    const MIDI_MAPPING: Record<DrumPart, number> = {
+      [DrumPart.BASS_DRUM]: 36,
+      [DrumPart.SNARE]: 38,
+      [DrumPart.SIDESTICK]: 37,
+      [DrumPart.HIGH_TOM]: 48,
+      [DrumPart.MID_TOM]: 45,
+      [DrumPart.FLOOR_TOM]: 43,
+      [DrumPart.HI_HAT_CLOSED]: 42,
+      [DrumPart.HI_HAT_OPEN]: 46,
+      [DrumPart.HI_HAT_PEDAL]: 44,
+      [DrumPart.CRASH_CYMBAL]: 49,
+      [DrumPart.RIDE_CYMBAL]: 51,
+      [DrumPart.REST]: 0,
+    };
+
+    // Group notes by measure and beat to create NoteEvents (for chords)
+    const beatsMap = new Map<string, Note[]>();
+    currentPartition.notes.forEach(note => {
+      if (note.part === DrumPart.REST) return;
+      const key = `${note.measure}-${note.beat}`;
+      if (!beatsMap.has(key)) beatsMap.set(key, []);
+      beatsMap.get(key)!.push(note);
+    });
+
+    const sortedBeats = Array.from(beatsMap.keys()).sort((a, b) => {
+      const [am, ab] = a.split('-').map(Number);
+      const [bm, bb] = b.split('-').map(Number);
+      return am - bm || ab - bb;
+    });
+
+    let lastTick = 0;
+    const ticksPerBeat = 128; // MIDI-Writer default
+
+    sortedBeats.forEach(key => {
+      const notesAtBeat = beatsMap.get(key)!;
+      const [measure, beat] = key.split('-').map(Number);
+      const absoluteBeat = measure * currentPartition.timeSignature.top + beat;
+      const currentTick = absoluteBeat * ticksPerBeat;
+      const waitTicks = Math.max(0, currentTick - lastTick);
+
+      const event = new MidiWriter.NoteEvent({
+        pitch: notesAtBeat.map(n => MIDI_MAPPING[n.part]),
+        duration: DURATION_MAP_MIDI[notesAtBeat[0].duration] || '4',
+        velocity: notesAtBeat[0].articulation === Articulation.ACCENT ? 120 : 80,
+        wait: `T${waitTicks}`
+      });
+
+      track.addEvent(event);
+      lastTick = currentTick + (DURATION_TO_INTEGER_VALUE[notesAtBeat[0].duration] / 24) * ticksPerBeat;
+    });
+
+    const writer = new MidiWriter.Writer(track);
+    const data = writer.buildFile();
+    const blob = new Blob([data as any], { type: 'audio/midi' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentPartition.name}.mid`;
+    document.body.appendChild(a);
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const DURATION_MAP_MIDI: Record<NoteDuration, string> = {
+    [NoteDuration.WHOLE]: '1',
+    [NoteDuration.HALF]: '2',
+    [NoteDuration.QUARTER]: '4',
+    [NoteDuration.EIGHTH]: '8',
+    [NoteDuration.SIXTEENTH]: '16',
+    [NoteDuration.THIRTY_SECOND]: '32',
+    [NoteDuration.SIXTY_FOURTH]: '64',
+    [NoteDuration.EIGHTH_TRIPLET]: '8t',
+  };
 
   if (!currentPartition) {
     return <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">Loading...</div>;
