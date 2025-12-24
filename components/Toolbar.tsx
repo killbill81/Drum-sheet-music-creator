@@ -1,7 +1,7 @@
 import React from 'react';
 import { NoteDuration, DrumPart, Tool, TimeSignature, LoopRegion, Partition, Articulation, TextAnnotation } from '../types';
 import { TOOLBAR_TOOLS, TOOLBAR_DURATIONS, TOOLBAR_DRUM_PARTS, TOOLBAR_RESTS } from '../constants';
-import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, DeleteIcon, AddLineIcon, AddMeasureIcon, TextIcon, WholeRestIcon, HalfRestIcon, QuarterRestIcon, EighthRestIcon, SixteenthRestIcon, ThirtySecondRestIcon, SixtyFourthRestIcon } from './Icons';
+import { PenIcon, EraserIcon, QuarterNoteIcon, EighthNoteIcon, SixteenthNoteIcon, ThirtySecondNoteIcon, SixtyFourthNoteIcon, EighthTripletIcon, PlayIcon, StopIcon, LoopIcon, SaveIcon, LoadIcon, PdfIcon, TrashIcon, PlusIcon, CopyIcon, FlamIcon, BuzzRollIcon, AccentIcon, DeleteIcon, AddLineIcon, AddMeasureIcon, TextIcon, WholeRestIcon, HalfRestIcon, QuarterRestIcon, EighthRestIcon, SixteenthRestIcon, ThirtySecondRestIcon, SixtyFourthRestIcon } from './Icons';
 
 interface ToolbarProps {
   className?: string;
@@ -45,6 +45,8 @@ const DurationIcons: Record<NoteDuration, React.ReactNode> = {
   [NoteDuration.EIGHTH]: <EighthNoteIcon />,
   [NoteDuration.SIXTEENTH]: <SixteenthNoteIcon />,
   [NoteDuration.THIRTY_SECOND]: <ThirtySecondNoteIcon />,
+  [NoteDuration.SIXTY_FOURTH]: <SixtyFourthNoteIcon />,
+  [NoteDuration.EIGHTH_TRIPLET]: <EighthTripletIcon />,
   [NoteDuration.HALF]: <QuarterNoteIcon />, // Placeholder
   [NoteDuration.WHOLE]: <QuarterNoteIcon />, // Placeholder
 };
@@ -53,6 +55,7 @@ const ArticulationIcons: Record<Articulation, React.ReactNode> = {
   [Articulation.NONE]: <QuarterNoteIcon />,
   [Articulation.FLAM]: <FlamIcon />,
   [Articulation.BUZZ_ROLL]: <BuzzRollIcon />,
+  [Articulation.ACCENT]: <AccentIcon />,
 };
 
 const articulationsToShow = [Articulation.FLAM, Articulation.BUZZ_ROLL];
@@ -65,17 +68,20 @@ const RestIcons: Record<NoteDuration, React.ReactNode> = {
   [NoteDuration.SIXTEENTH]: <SixteenthRestIcon />,
   [NoteDuration.THIRTY_SECOND]: <ThirtySecondRestIcon />,
   [NoteDuration.SIXTY_FOURTH]: <SixtyFourthRestIcon />,
+  [NoteDuration.EIGHTH_TRIPLET]: <EighthRestIcon />, // Placeholder for triplet rest
 };
 
 const ToolIcons: Record<Tool, React.ReactNode> = {
-    [Tool.PEN]: <PenIcon />,
-    [Tool.ERASER]: <EraserIcon />,
-    [Tool.LOOP]: <LoopIcon />,
-    [Tool.COPY]: <CopyIcon />,
-    [Tool.DELETE]: <DeleteIcon />,
-    [Tool.ADD_MEASURE]: <AddMeasureIcon />,
-    [Tool.DELETE_MEASURE]: <TrashIcon />,
-    [Tool.TEXT]: <TextIcon />,
+  [Tool.PEN]: <PenIcon />,
+  [Tool.ERASER]: <EraserIcon />,
+  [Tool.LOOP]: <LoopIcon />,
+  [Tool.COPY]: <CopyIcon />,
+  [Tool.DELETE]: <DeleteIcon />,
+  [Tool.ADD_MEASURE]: <AddMeasureIcon />,
+  [Tool.DELETE_MEASURE]: <TrashIcon />,
+  [Tool.ADD_LINE]: <AddLineIcon />,
+  [Tool.DELETE_LINE]: <TrashIcon />,
+  [Tool.TEXT]: <TextIcon />,
 };
 
 const timeSignatureNumerators = [2, 3, 4, 6];
@@ -89,6 +95,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onDeletePartition,
   onRenamePartition,
   onAddLine,
+  onInsertLine,
+  onDeleteLine,
   selectedTool,
   setSelectedTool,
   selectedDuration,
@@ -116,10 +124,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onUpdateAnnotationStyle
 }) => {
   const getButtonClass = (isSelected: boolean) =>
-    `p-2 rounded-lg transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-      isSelected
-        ? 'bg-blue-600 text-white shadow-md'
-        : 'bg-white dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+    `p-2 rounded-lg transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 ${isSelected
+      ? 'bg-blue-600 text-white shadow-md'
+      : 'bg-white dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
     }`;
 
   const loadInputRef = React.useRef<HTMLInputElement>(null);
@@ -138,8 +145,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <input 
-          type="text" 
+        <input
+          type="text"
           value={currentPartitionName}
           onChange={(e) => onRenamePartition(e.target.value)}
           className="bg-white dark:bg-gray-700 p-2 rounded-lg w-32"
@@ -197,15 +204,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             min="8"
             max="72"
           />
-          <button 
-            onClick={() => onUpdateAnnotationStyle({ fontWeight: selectedFontWeight === 'bold' ? 'normal' : 'bold' })} 
+          <button
+            onClick={() => onUpdateAnnotationStyle({ fontWeight: selectedFontWeight === 'bold' ? 'normal' : 'bold' })}
             className={getButtonClass(selectedFontWeight === 'bold')}
             title="Gras"
           >
             <span className="font-bold">B</span>
           </button>
-          <button 
-            onClick={() => onUpdateAnnotationStyle({ fontStyle: selectedFontStyle === 'italic' ? 'normal' : 'italic' })} 
+          <button
+            onClick={() => onUpdateAnnotationStyle({ fontStyle: selectedFontStyle === 'italic' ? 'normal' : 'italic' })}
             className={getButtonClass(selectedFontStyle === 'italic')}
             title="Italique"
           >
@@ -224,14 +231,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
         {TOOLBAR_RESTS.map(({ id, label }) => (
-          <button 
-            key={id} 
+          <button
+            key={id}
             onClick={() => {
               setSelectedTool(Tool.PEN);
               setSelectedDrumPart(DrumPart.REST);
               setSelectedDuration(id);
             }}
-            className={getButtonClass(selectedDrumPart === DrumPart.REST && selectedDuration === id)} 
+            className={getButtonClass(selectedDrumPart === DrumPart.REST && selectedDuration === id)}
             title={label}
           >
             {RestIcons[id]}
@@ -247,7 +254,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         ))}
       </div>
 
-      
+
       <div className="flex-grow md:flex-grow-0">
         <select
           value={selectedDrumPart}
@@ -260,15 +267,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </select>
       </div>
 
-       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
-         <label className="text-sm font-medium">Time Sig</label>
-         <select value={timeSignature.top} onChange={(e) => onTimeSignatureChange({ ...timeSignature, top: Number(e.target.value) })} className="bg-white dark:bg-gray-700 p-1 rounded text-sm">
-           {timeSignatureNumerators.map(n => <option key={n} value={n}>{n}</option>)}
-         </select>
-         <span className="font-bold">/</span>
-         <select value={timeSignature.bottom} onChange={(e) => onTimeSignatureChange({ ...timeSignature, bottom: Number(e.target.value) })} className="bg-white dark:bg-gray-700 p-1 rounded text-sm">
-            {timeSignatureDenominators.map(d => <option key={d} value={d}>{d}</option>)}
-         </select>
+      <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2 px-2">
+        <label className="text-sm font-medium">Time Sig</label>
+        <select value={timeSignature.top} onChange={(e) => onTimeSignatureChange({ ...timeSignature, top: Number(e.target.value) })} className="bg-white dark:bg-gray-700 p-1 rounded text-sm">
+          {timeSignatureNumerators.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span className="font-bold">/</span>
+        <select value={timeSignature.bottom} onChange={(e) => onTimeSignatureChange({ ...timeSignature, bottom: Number(e.target.value) })} className="bg-white dark:bg-gray-700 p-1 rounded text-sm">
+          {timeSignatureDenominators.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
       </div>
 
       <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-lg gap-2">

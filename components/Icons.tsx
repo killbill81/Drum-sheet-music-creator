@@ -53,6 +53,26 @@ export const ThirtySecondNoteIcon = () => (
   </svg>
 );
 
+export const SixtyFourthNoteIcon = () => (
+  <svg viewBox="0 0 30 50" className="h-6 w-auto">
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
+    <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
+    <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <path d="M 15 16 Q 25 21, 15 31" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <path d="M 15 22 Q 25 27, 15 37" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <path d="M 15 28 Q 25 33, 15 43" stroke="currentColor" strokeWidth="2.5" fill="none" />
+  </svg>
+);
+
+export const EighthTripletIcon = () => (
+  <svg viewBox="0 0 30 50" className="h-6 w-auto">
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
+    <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
+    <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
+    <text x="18" y="20" fontSize="12" fill="currentColor">3</text>
+  </svg>
+);
+
 export const PercussionClef = ({ x, y }: { x: number; y: number }) => (
   <g transform={`translate(${x}, ${y}) scale(0.8)`}>
     <rect x="5" y="12" width="4" height="40" fill="currentColor" />
@@ -129,6 +149,12 @@ export const FlamIcon = () => (
     <circle cx="8" cy="38" r="3" fill="currentColor" />
     <line x1="11" y1="38" x2="11" y2="20" stroke="currentColor" strokeWidth="1.5" />
     <line x1="8" y1="28" x2="14" y2="24" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+
+export const AccentIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M7 7l10 5-10 5" />
   </svg>
 );
 
