@@ -63,6 +63,8 @@ const Staff: React.FC<StaffProps> = ({
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number; part: DrumPart } | null>(null);
   const [hoverMeasure, setHoverMeasure] = useState<number | null>(null);
 
+  const measureNoteAreasRef = useRef<Map<number, { start: number; width: number; yPositions: Map<number, number> }>>(new Map());
+
   const beatsPerMeasure = timeSignature.top;
   const numLines = Math.ceil(numMeasures / MEASURES_PER_LINE);
 
@@ -106,6 +108,7 @@ const Staff: React.FC<StaffProps> = ({
     if (!containerRef.current) return;
 
     // Clear previous rendering
+    measureNoteAreasRef.current.clear();
     while (containerRef.current.firstChild) {
       containerRef.current.removeChild(containerRef.current.firstChild);
     }
@@ -124,7 +127,8 @@ const Staff: React.FC<StaffProps> = ({
       measuresOnThisLine.forEach((mIndex, i) => {
         const x = layout.measureStartXs[lineIndex][i];
         const width = layout.measureWidths[mIndex];
-        const stave = new Stave(x, lineYOffset, width);
+        // Sync spacing with our constants (12px) using VexFlow 5 options
+        const stave = new Stave(x, lineYOffset, width, { spacingBetweenLinesPx: STAFF_LINE_GAP });
 
         if (i === 0) {
           stave.addClef('percussion');
@@ -132,6 +136,30 @@ const Staff: React.FC<StaffProps> = ({
         }
 
         stave.setContext(context).draw();
+
+        // Capture EXACT note area and Y positions for interaction
+        const yPositions = new Map<number, number>();
+        // Map drum parts to VexFlow lines and get their REAL y coordinates
+        // Manual mapping for standard percussion stave in VexFlow 5
+        const lineMap: Record<string, number> = {
+          'g/5': 4.5, 'f/5': 4, 'e/5': 3.5, 'd/5': 3, 'c/5': 2.5,
+          'b/4': 2, 'a/4': 1.5, 'g/4': 1, 'f/4': 0.5, 'e/4': 0, 'd/4': -0.5
+        };
+
+        Object.keys(VEXFLOW_DRUM_MAPPING).forEach(part => {
+          const p = part as DrumPart;
+          const key = VEXFLOW_DRUM_MAPPING[p].keys[0];
+          const lineNumber = lineMap[key] ?? 2;
+          yPositions.set(DRUM_PART_Y_POSITIONS[p], stave.getYForLine(lineNumber));
+        });
+
+        if (measureNoteAreasRef.current) {
+          measureNoteAreasRef.current.set(mIndex, {
+            start: stave.getNoteStartX(),
+            width: stave.getNoteEndX() - stave.getNoteStartX(),
+            yPositions
+          });
+        }
 
         // Render notes for this measure
         const notesInMeasure = notes.filter(n => n.measure === mIndex).sort((a, b) => a.beat - b.beat);
@@ -152,22 +180,18 @@ const Staff: React.FC<StaffProps> = ({
             const beatNotes = beatsGroups.get(beat)!;
             const vfDuration = DURATION_MAP[beatNotes[0].duration] || 'q';
 
-            const keys = beatNotes.map(n => VEXFLOW_DRUM_MAPPING[n.part]?.keys[0] || 'c/5');
-            const noteheads = beatNotes.map(n => VEXFLOW_DRUM_MAPPING[n.part]?.notehead || 'normal');
+            const keys = beatNotes.map(n => {
+              const mapping = VEXFLOW_DRUM_MAPPING[n.part];
+              const key = mapping?.keys[0] || 'c/5';
+              const head = mapping?.notehead;
+              // In VexFlow 5, we can specify the notehead in the key string: "c/5/x"
+              return head && head !== 'normal' ? `${key}/${head}` : key;
+            });
 
             const staveNote = new StaveNote({
               keys: keys,
               duration: vfDuration,
               clef: 'percussion',
-            });
-
-            // Set noteheads
-            noteheads.forEach((head, index) => {
-              if (head !== 'normal') {
-                // In VexFlow 5, use glyph or setNoteHead. 
-                // Using a known-working way if setNoteHeadGlyph is missing.
-                (staveNote as any).setGlyph(index, { code: head === 'x' ? 'v3f' : (head === 'open_x' ? 'v3e' : 'v0') });
-              }
             });
 
             // Highlights
@@ -280,14 +304,14 @@ const Staff: React.FC<StaffProps> = ({
     const xInMeasure = x - lineMeasureStartXs[measureInLine];
     const isFirstInLine = measureInLine === 0;
 
-    let noteAreaStart = MEASURE_PADDING_HORIZONTAL;
-    if (isFirstInLine) {
-      noteAreaStart += CLEF_WIDTH + TIME_SIGNATURE_WIDTH;
-    }
+    // Use captured VexFlow note area if available, otherwise fallback to estimate
+    const area = measureNoteAreasRef.current.get(measureIndex);
+    const measureXInLine = layout.measureStartXs[lineIndex][measureInLine];
 
+    let noteAreaStart = area ? area.start - measureXInLine : (isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL);
     const currentMeasureWidth = layout.measureWidths[measureIndex];
     const paddedXInMeasure = xInMeasure - noteAreaStart;
-    const noteAreaWidth = currentMeasureWidth - noteAreaStart - MEASURE_PADDING_HORIZONTAL;
+    const noteAreaWidth = area ? area.width : (currentMeasureWidth - noteAreaStart - MEASURE_PADDING_HORIZONTAL);
 
     if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
 
@@ -321,12 +345,25 @@ const Staff: React.FC<StaffProps> = ({
       const lineYOffset = lineIndex * (STAFF_HEIGHT + STAFF_VERTICAL_GAP);
       const beatWidth = noteAreaWidth / beatsPerMeasure;
 
-      const isFirstInLine = (pos.measureIndex % MEASURES_PER_LINE) === 0;
-      const noteAreaStart = isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL;
-      const beatX = layout.measureStartXs[lineIndex][pos.measureIndex % MEASURES_PER_LINE] + noteAreaStart + quantizedBeat * beatWidth;
-      const partY = lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart];
+      // Vertical alignment fix: use DRUM_PART_Y_POSITIONS which is already relative to STAFF_Y_OFFSET
+      // and ensure it's relative to the lineYOffset.
+      const area = measureNoteAreasRef.current.get(pos.measureIndex);
+      const measureXInLine = layout.measureStartXs[lineIndex][pos.measureIndex % MEASURES_PER_LINE];
+      const noteAreaStart = area ? (area.start - measureXInLine) : ((pos.measureIndex % MEASURES_PER_LINE === 0) ? (CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL) : MEASURE_PADDING_HORIZONTAL);
 
-      setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
+      const beatX = measureXInLine + noteAreaStart + quantizedBeat * beatWidth;
+
+      // Vertical alignment fix: use CAPTURED y coordinate from VexFlow
+      const yFromVF = area?.yPositions.get(DRUM_PART_Y_POSITIONS[selectedDrumPart]);
+      const partY = yFromVF ?? (lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart]);
+
+      // STABILIZE state update to prevent infinite loop
+      if (!hoverPosition ||
+        Math.abs(hoverPosition.x - beatX) > 0.1 ||
+        Math.abs(hoverPosition.y - partY) > 0.1 ||
+        hoverPosition.part !== selectedDrumPart) {
+        setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
+      }
     }
   };
 

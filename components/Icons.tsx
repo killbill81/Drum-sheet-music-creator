@@ -13,22 +13,22 @@ export const EraserIcon = () => (
 );
 
 export const LoopIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9a9 9 0 0114.65-4.65L20 5M20 15a9 9 0 01-14.65 4.65L4 19" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9a9 9 0 0114.65-4.65L20 5M20 15a9 9 0 01-14.65 4.65L4 19" />
+  </svg>
 );
 
 export const QuarterNoteIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
     <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
 
 export const EighthNoteIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
     <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
     <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
   </svg>
@@ -36,7 +36,7 @@ export const EighthNoteIcon = () => (
 
 export const SixteenthNoteIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
     <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
     <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
     <path d="M 15 16 Q 25 21, 15 31" stroke="currentColor" strokeWidth="2.5" fill="none" />
@@ -45,7 +45,7 @@ export const SixteenthNoteIcon = () => (
 
 export const ThirtySecondNoteIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
     <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
     <path d="M 15 10 Q 25 15, 15 25" stroke="currentColor" strokeWidth="2.5" fill="none" />
     <path d="M 15 16 Q 25 21, 15 31" stroke="currentColor" strokeWidth="2.5" fill="none" />
@@ -75,9 +75,9 @@ export const StopIcon = () => (
 );
 
 export const PlaybackArrowIcon = ({ x, y }: { x: number; y: number }) => (
-    <svg x={x - 8} y={y - 16} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-blue-500">
-        <path d="M12 21l-12-18h24z"/>
-    </svg>
+  <svg x={x - 8} y={y - 16} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-blue-500">
+    <path d="M12 21l-12-18h24z" />
+  </svg>
 );
 
 export const SaveIcon = () => (
@@ -124,7 +124,7 @@ export const CopyIcon = () => (
 
 export const FlamIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="18" cy="45" r="5" fill="currentColor"/>
+    <circle cx="18" cy="45" r="5" fill="currentColor" />
     <line x1="23" y1="45" x2="23" y2="10" stroke="currentColor" strokeWidth="2" />
     <circle cx="8" cy="38" r="3" fill="currentColor" />
     <line x1="11" y1="38" x2="11" y2="20" stroke="currentColor" strokeWidth="1.5" />
@@ -134,7 +134,7 @@ export const FlamIcon = () => (
 
 export const BuzzRollIcon = () => (
   <svg viewBox="0 0 30 50" className="h-6 w-auto">
-    <circle cx="10" cy="45" r="5" fill="currentColor"/>
+    <circle cx="10" cy="45" r="5" fill="currentColor" />
     <line x1="15" y1="45" x2="15" y2="10" stroke="currentColor" strokeWidth="2" />
     <line x1="12" y1="25" x2="18" y2="28" stroke="currentColor" strokeWidth="2" />
     <line x1="12" y1="28" x2="18" y2="31" stroke="currentColor" strokeWidth="2" />
@@ -167,40 +167,44 @@ export const TextIcon = () => (
   </svg>
 );
 
-export const WholeRestIcon = ({ y = 0 }) => (
-  <rect x="0" y={y} width="12" height="6" fill="currentColor" />
+export const WholeRestIcon = () => (
+  <svg width="12" height="24" viewBox="0 0 12 24" className="h-6 w-auto">
+    <rect x="0" y="4" width="12" height="6" fill="currentColor" />
+  </svg>
 );
 
-export const HalfRestIcon = ({ y = 0 }) => (
-  <rect x="0" y={y} width="12" height="6" fill="currentColor" />
+export const HalfRestIcon = () => (
+  <svg width="12" height="24" viewBox="0 0 12 24" className="h-6 w-auto">
+    <rect x="0" y="14" width="12" height="6" fill="currentColor" />
+  </svg>
 );
 
 export const QuarterRestIcon = () => (
   <svg width="14" height="36" viewBox="0 0 14 36" className="h-8 w-auto">
-    <path d="M7.13,16.33c-1.46-0.4-2.23-1.18-2.23-2.21c0-1.46,1.18-2.5,2.8-2.5c1.81,0,2.8,1.13,2.8,2.5c0,0.69-0.28,1.33-0.8,1.78l0.5,0.88c0.73-0.68,1.18-1.68,1.18-2.66c0-2.43-1.8-4.05-4.5-4.05c-2.83,0-4.65,1.63-4.65,4.05c0,1.9,1.18,3.25,2.9,3.88c1.48,0.5,2.25,1.2,2.25,2.2c0,1.53-1.18,2.58-2.88,2.58c-1.8,0-2.88-1.13-2.88-2.58c0-0.7,0.28-1.35,0.83-1.8l-0.5-0.88c-0.75,0.68-1.2,1.7-1.2,2.68c0,2.4,1.8,4.05,4.58,4.05c2.85,0,4.73-1.65,4.73-4.05C10.03,17.8,8.75,16.8,7.13,16.33z" fill="currentColor"/>
+    <path d="M7.13,16.33c-1.46-0.4-2.23-1.18-2.23-2.21c0-1.46,1.18-2.5,2.8-2.5c1.81,0,2.8,1.13,2.8,2.5c0,0.69-0.28,1.33-0.8,1.78l0.5,0.88c0.73-0.68,1.18-1.68,1.18-2.66c0-2.43-1.8-4.05-4.5-4.05c-2.83,0-4.65,1.63-4.65,4.05c0,1.9,1.18,3.25,2.9,3.88c1.48,0.5,2.25,1.2,2.25,2.2c0,1.53-1.18,2.58-2.88,2.58c-1.8,0-2.88-1.13-2.88-2.58c0-0.7,0.28-1.35,0.83-1.8l-0.5-0.88c-0.75,0.68-1.2,1.7-1.2,2.68c0,2.4,1.8,4.05,4.58,4.05c2.85,0,4.73-1.65,4.73-4.05C10.03,17.8,8.75,16.8,7.13,16.33z" fill="currentColor" />
   </svg>
 );
 
 export const EighthRestIcon = () => (
   <svg width="16" height="26" viewBox="0 0 16 26" className="h-8 w-auto">
-    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M4.2,2.5v11h1v-11H4.2z" fill="currentColor"/>
+    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M4.2,2.5v11h1v-11H4.2z" fill="currentColor" />
   </svg>
 );
 
 export const SixteenthRestIcon = () => (
   <svg width="16" height="32" viewBox="0 0 16 32" className="h-8 w-auto">
-    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M4.2,2.5v17h1v-17H4.2z" fill="currentColor"/>
+    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M4.2,2.5v17h1v-17H4.2z" fill="currentColor" />
   </svg>
 );
 
 export const ThirtySecondRestIcon = () => (
   <svg width="16" height="38" viewBox="0 0 16 38" className="h-8 w-auto">
-    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M10.6,27.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,25.55,10.6,26.25,10.6,27.2z M4.2,2.5v23h1v-23H4.2z" fill="currentColor"/>
+    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M10.6,27.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,25.55,10.6,26.25,10.6,27.2z M4.2,2.5v23h1v-23H4.2z" fill="currentColor" />
   </svg>
 );
 
 export const SixtyFourthRestIcon = () => (
   <svg width="16" height="44" viewBox="0 0 16 44" className="h-8 w-auto">
-    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M10.6,27.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,25.55,10.6,26.25,10.6,27.2z M10.6,33.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,31.55,10.6,32.25,10.6,33.2z M4.2,2.5v29h1v-29H4.2z" fill="currentColor"/>
+    <path d="M10.6,15.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,13.55,10.6,14.25,10.6,15.2z M10.6,21.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,19.55,10.6,20.25,10.6,21.2z M10.6,27.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,25.55,10.6,26.25,10.6,27.2z M10.6,33.2c0,0.95-0.7,1.65-1.65,1.65c-0.95,0-1.65-0.7-1.65-1.65c0-0.95,0.7-1.65,1.65-1.65C9.9,31.55,10.6,32.25,10.6,33.2z M4.2,2.5v29h1v-29H4.2z" fill="currentColor" />
   </svg>
 );
