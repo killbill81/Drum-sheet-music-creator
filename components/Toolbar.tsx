@@ -127,7 +127,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const getButtonClass = (isSelected: boolean) =>
     `p-2 rounded-lg transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-400 ${isSelected
       ? 'bg-blue-600 text-white shadow-md'
-      : 'bg-white dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+      : 'bg-white dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-200'
     }`;
 
   const loadInputRef = React.useRef<HTMLInputElement>(null);
@@ -137,166 +137,192 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 flex flex-wrap gap-2 items-stretch justify-center max-w-[95vw] ${className || ''}`}>
 
       {/* GROUPE 1: PROJET & EXPORT */}
-      <div className="flex items-center bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl gap-1 border border-gray-200/50 dark:border-gray-700/50">
-        <button onClick={onSave} className={getButtonClass(false)} title="Sauvegarder">
-          <SaveIcon />
-        </button>
-        <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Charger">
-          <LoadIcon />
-        </button>
-        <input type="file" accept=".json" onChange={onLoad} ref={loadInputRef} className="hidden" />
-        <button onClick={onExportPdf} className={getButtonClass(false)} title="Export PDF">
-          <PdfIcon />
-        </button>
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">PROJET</label>
+        <div className="flex items-center gap-1">
+          <button onClick={onSave} className={getButtonClass(false)} title="Sauvegarder">
+            <SaveIcon />
+          </button>
+          <button onClick={() => loadInputRef.current?.click()} className={getButtonClass(false)} title="Charger">
+            <LoadIcon />
+          </button>
+          <input type="file" accept=".json" onChange={onLoad} ref={loadInputRef} className="hidden" />
+          <button onClick={onExportPdf} className={getButtonClass(false)} title="Export PDF">
+            <PdfIcon />
+          </button>
+        </div>
       </div>
 
       {/* GROUPE 2: GESTION DES PARTITIONS */}
-      <div className="flex items-center bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl gap-2 border border-gray-200/50 dark:border-gray-700/50">
-        <div className="flex flex-col gap-1">
-          <select
-            value={currentPartitionId || ''}
-            onChange={(e) => onSelectPartition(e.target.value)}
-            className="bg-white dark:bg-gray-700 py-1 px-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 transition shadow-sm"
-          >
-            {partitions.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={currentPartitionName}
-            onChange={(e) => onRenamePartition(e.target.value)}
-            placeholder="Nom du score..."
-            className="bg-white dark:bg-gray-700 py-1 px-2 rounded-lg text-xs w-32 border border-gray-200 dark:border-gray-600 focus:ring-1 focus:ring-blue-400"
-          />
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">SCORE</label>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1">
+            <select
+              value={currentPartitionId || ''}
+              onChange={(e) => onSelectPartition(e.target.value)}
+              className="bg-white dark:bg-gray-700 py-1 px-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 transition shadow-sm"
+            >
+              {partitions.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={currentPartitionName}
+              onChange={(e) => onRenamePartition(e.target.value)}
+              placeholder="Nom du score..."
+              className="bg-white dark:bg-gray-700 py-1 px-2 rounded-lg text-xs w-32 border border-gray-200 dark:border-gray-600 focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="flex gap-1">
+            <button onClick={onCreatePartition} className={getButtonClass(false)} title="Nouveau Score">
+              <PlusIcon />
+            </button>
+            <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500 hover:text-white`} title="Supprimer Score">
+              <TrashIcon />
+            </button>
+          </div>
         </div>
-        <div className="flex gap-1">
-          <button onClick={onCreatePartition} className={getButtonClass(false)} title="Nouveau Score">
+      </div>
+
+      {/* GROUPE 3: STRUCTURE (Lignes) */}
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">LIGNES</label>
+        <div className="flex items-center gap-1">
+          <button onClick={onAddLine} className={getButtonClass(false)} title="Ajouter Ligne">
+            <AddLineIcon />
+          </button>
+          <button onClick={() => {
+            const line = window.prompt("Insérer après la ligne :");
+            if (line) onInsertLine(parseInt(line, 10) - 1);
+          }} className={getButtonClass(false)} title="Insérer Ligne">
             <PlusIcon />
           </button>
-          <button onClick={() => currentPartitionId && onDeletePartition(currentPartitionId)} className={`${getButtonClass(false)} hover:bg-red-500 hover:text-white`} title="Supprimer Score">
+          <button onClick={() => {
+            const line = window.prompt("Numéro de ligne à supprimer :");
+            if (line) onDeleteLine(parseInt(line, 10) - 1);
+          }} className={`${getButtonClass(false)} hover:bg-red-500 hover:text-white`} title="Supprimer Ligne">
+            <DeleteIcon />
+          </button>
+        </div>
+      </div>
+
+      {/* GROUPE 4: STRUCTURE (Mesures) */}
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">MESURES</label>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setSelectedTool(Tool.ADD_MEASURE)} className={getButtonClass(selectedTool === Tool.ADD_MEASURE)} title="Ajouter Mesure">
+            <AddMeasureIcon />
+          </button>
+          <button onClick={() => setSelectedTool(Tool.DELETE_MEASURE)} className={`${getButtonClass(selectedTool === Tool.DELETE_MEASURE)} hover:bg-red-500 hover:text-white`} title="Supprimer Mesure">
             <TrashIcon />
           </button>
         </div>
       </div>
 
-      {/* GROUPE 3: STRUCTURE (Lignes & Mesures) */}
-      <div className="flex items-center bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl gap-1 border border-gray-200/50 dark:border-gray-700/50">
-        <button onClick={onAddLine} className={getButtonClass(false)} title="Ajouter Ligne">
-          <AddLineIcon />
-        </button>
-        <button onClick={() => {
-          const line = window.prompt("Insérer après la ligne :");
-          if (line) onInsertLine(parseInt(line, 10) - 1);
-        }} className={getButtonClass(false)} title="Insérer Ligne">
-          <PlusIcon />
-        </button>
-        <button onClick={() => {
-          const line = window.prompt("Numéro de ligne à supprimer :");
-          if (line) onDeleteLine(parseInt(line, 10) - 1);
-        }} className={`${getButtonClass(false)} hover:bg-red-500 hover:text-white`} title="Supprimer Ligne">
-          <DeleteIcon />
-        </button>
-      </div>
-
-      {/* GROUPE 4: OUTILS D'ÉDITION */}
-      <div className="flex bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl gap-1 border border-gray-200/50 dark:border-gray-700/50">
-        {TOOLBAR_TOOLS.map(({ id, label }) => {
-          if (id === Tool.LOOP) {
+      {/* GROUPE 5: OUTILS D'ÉDITION */}
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">ÉDITION</label>
+        <div className="flex gap-1">
+          {[Tool.PEN, Tool.ERASER, Tool.TEXT, Tool.LOOP, Tool.COPY, Tool.DELETE].map((id) => {
+            const label = TOOLBAR_TOOLS.find(t => t.id === id)?.label || '';
+            const isSelected = id === Tool.LOOP ? (selectedTool === id || !!loopRegion) : (selectedTool === id);
             return (
-              <button key={id} onClick={onLoopButtonClick} className={getButtonClass(selectedTool === id || !!loopRegion)} title={label}>
+              <button key={id} onClick={() => id === Tool.LOOP ? onLoopButtonClick() : setSelectedTool(id)} className={getButtonClass(isSelected)} title={label}>
                 {ToolIcons[id]}
               </button>
             )
-          }
-          return (
-            <button key={id} onClick={() => setSelectedTool(id)} className={getButtonClass(selectedTool === id)} title={label}>
-              {ToolIcons[id]}
-            </button>
-          )
-        })}
+          })}
+        </div>
       </div>
 
-      {/* GROUPE 5: SAISIE MUSICALE (Cœur de l'éditeur) */}
-      <div className="flex bg-blue-50/30 dark:bg-blue-900/20 p-1.5 rounded-xl gap-2 border border-blue-200/50 dark:border-blue-700/50 items-center">
-        {/* Durées de Notes */}
-        <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
-          {TOOLBAR_DURATIONS.map(({ id, label }) => (
-            <button key={id} onClick={() => setSelectedDuration(id)} className={getButtonClass(selectedDuration === id)} title={label}>
-              {DurationIcons[id]}
-            </button>
-          ))}
-        </div>
-
-        {/* Silences */}
-        <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
-          {TOOLBAR_RESTS.slice(2, 6).map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => {
-                setSelectedTool(Tool.PEN);
-                setSelectedDrumPart(DrumPart.REST);
-                setSelectedDuration(id);
-              }}
-              className={getButtonClass(selectedDrumPart === DrumPart.REST && selectedDuration === id)}
-              title={`Silence: ${label}`}
-            >
-              {RestIcons[id]}
-            </button>
-          ))}
-        </div>
-
-        {/* Articulations */}
-        <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
-          {articulationsToShow.map((articulation) => (
-            <button key={articulation} onClick={() => setSelectedArticulation(selectedArticulation === articulation ? Articulation.NONE : articulation)} className={getButtonClass(selectedArticulation === articulation)} title={articulation}>
-              {ArticulationIcons[articulation]}
-            </button>
-          ))}
-        </div>
-
-        {/* Sélecteur d'Instrument */}
-        <select
-          value={selectedDrumPart}
-          onChange={(e) => setSelectedDrumPart(e.target.value as DrumPart)}
-          className="bg-white dark:bg-gray-700 py-2 px-3 rounded-lg text-sm font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[140px]"
-        >
-          {TOOLBAR_DRUM_PARTS.map(({ id, label }) => (
-            <option key={id} value={id}>{label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* GROUPE 6: TRANSPORT & RÉGLAGES */}
-      <div className="flex items-center bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl gap-3 border border-gray-200/50 dark:border-gray-700/50">
-        <button onClick={isPlaying ? onStop : onPlay} className={`${getButtonClass(false)} w-12 h-10 ${isPlaying ? 'bg-red-500 text-white animate-pulse' : 'bg-green-500 text-white'}`} title={isPlaying ? 'Stop' : 'Play'}>
-          {isPlaying ? <StopIcon /> : <PlayIcon />}
-        </button>
-
-        <div className="flex flex-col gap-1 px-1">
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] font-bold uppercase text-gray-500">Tempo</label>
-            <span className="text-xs font-mono font-bold w-7 text-blue-600">{tempo}</span>
+      {/* GROUPE 6: SAISIE MUSICALE */}
+      <div className="flex flex-col bg-blue-50/30 dark:bg-blue-900/20 p-1.5 rounded-xl border border-blue-200/50 dark:border-blue-700/50 items-center gap-1">
+        <label className="text-[10px] font-bold text-blue-400 dark:text-blue-500 uppercase tracking-tight text-center">SAISIE</label>
+        <div className="flex gap-2 items-center">
+          {/* Durées de Notes */}
+          <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+            {TOOLBAR_DURATIONS.map(({ id, label }) => (
+              <button key={id} onClick={() => setSelectedDuration(id)} className={getButtonClass(selectedDuration === id)} title={label}>
+                {DurationIcons[id]}
+              </button>
+            ))}
           </div>
-          <input
-            type="range"
-            min="40"
-            max="240"
-            value={tempo}
-            onChange={(e) => onTempoChange(Number(e.target.value))}
-            className="w-20 h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600 dark:bg-gray-700"
-            disabled={isPlaying}
-          />
-        </div>
 
-        <div className="flex items-center gap-1 bg-white/50 dark:bg-gray-800/50 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
-          <select value={timeSignature.top} onChange={(e) => onTimeSignatureChange({ ...timeSignature, top: Number(e.target.value) })} className="bg-transparent font-bold text-xs ring-0 border-none p-0 focus:ring-0">
-            {timeSignatureNumerators.map(n => <option key={n} value={n}>{n}</option>)}
+          {/* Silences */}
+          <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+            {TOOLBAR_RESTS.slice(2, 6).map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setSelectedTool(Tool.PEN);
+                  setSelectedDrumPart(DrumPart.REST);
+                  setSelectedDuration(id);
+                }}
+                className={getButtonClass(selectedDrumPart === DrumPart.REST && selectedDuration === id)}
+                title={`Silence: ${label}`}
+              >
+                {RestIcons[id]}
+              </button>
+            ))}
+          </div>
+
+          {/* Articulations */}
+          <div className="flex gap-0.5 bg-white/50 dark:bg-gray-800/50 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+            {articulationsToShow.map((articulation) => (
+              <button key={articulation} onClick={() => setSelectedArticulation(selectedArticulation === articulation ? Articulation.NONE : articulation)} className={getButtonClass(selectedArticulation === articulation)} title={articulation}>
+                {ArticulationIcons[articulation]}
+              </button>
+            ))}
+          </div>
+
+          {/* Sélecteur d'Instrument */}
+          <select
+            value={selectedDrumPart}
+            onChange={(e) => setSelectedDrumPart(e.target.value as DrumPart)}
+            className="bg-white dark:bg-gray-700 py-2 px-3 rounded-lg text-sm font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[140px]"
+          >
+            {TOOLBAR_DRUM_PARTS.map(({ id, label }) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
           </select>
-          <span className="text-xs font-bold text-gray-400">/</span>
-          <select value={timeSignature.bottom} onChange={(e) => onTimeSignatureChange({ ...timeSignature, bottom: Number(e.target.value) })} className="bg-transparent font-bold text-xs ring-0 border-none p-0 focus:ring-0">
-            {timeSignatureDenominators.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+        </div>
+      </div>
+
+      {/* GROUPE 7: TRANSPORT & RÉGLAGES */}
+      <div className="flex flex-col bg-gray-50/50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight text-center mb-1">LECTURE</label>
+        <div className="flex items-center gap-3">
+          <button onClick={isPlaying ? onStop : onPlay} className={`${getButtonClass(false)} w-12 h-10 ${isPlaying ? 'bg-red-500 text-white animate-pulse' : 'bg-green-500 text-white'}`} title={isPlaying ? 'Stop' : 'Play'}>
+            {isPlaying ? <StopIcon /> : <PlayIcon />}
+          </button>
+
+          <div className="flex flex-col gap-1 px-1">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-bold uppercase text-gray-500">Tempo</label>
+              <span className="text-xs font-mono font-bold w-7 text-blue-600">{tempo}</span>
+            </div>
+            <input
+              type="range"
+              min="40"
+              max="240"
+              value={tempo}
+              onChange={(e) => onTempoChange(Number(e.target.value))}
+              className="w-20 h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600 dark:bg-gray-700"
+              disabled={isPlaying}
+            />
+          </div>
+
+          <div className="flex items-center gap-1 bg-white/50 dark:bg-gray-800/50 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+            <select value={timeSignature.top} onChange={(e) => onTimeSignatureChange({ ...timeSignature, top: Number(e.target.value) })} className="bg-transparent font-bold text-xs ring-0 border-none p-0 focus:ring-0">
+              {timeSignatureNumerators.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span className="text-xs font-bold text-gray-400">/</span>
+            <select value={timeSignature.bottom} onChange={(e) => onTimeSignatureChange({ ...timeSignature, bottom: Number(e.target.value) })} className="bg-transparent font-bold text-xs ring-0 border-none p-0 focus:ring-0">
+              {timeSignatureDenominators.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 

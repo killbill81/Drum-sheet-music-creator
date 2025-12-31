@@ -37,19 +37,25 @@ const App: React.FC = () => {
   const pauseTimeRef = useRef<number>(0);
 
   const createNewPartition = useCallback(() => {
+    const newId = crypto.randomUUID();
+    const newPartition: Partition = {
+      id: newId,
+      name: `New Score`, // Simplified name generation to avoid stale closure issues for now
+      notes: [],
+      timeSignature: { top: 4, bottom: 4 },
+      tempo: 120,
+      numMeasures: 8,
+      textAnnotations: [],
+    };
+
     setPartitions(prev => {
-      const newPartition: Partition = {
-        id: crypto.randomUUID(),
-        name: `New Score ${prev.length + 1}`,
-        notes: [],
-        timeSignature: { top: 4, bottom: 4 },
-        tempo: 120,
-        numMeasures: 8,
-        textAnnotations: [],
-      };
-      setCurrentPartitionId(newPartition.id);
-      return [...prev, newPartition];
+      // Ensure we have a unique name based on latest state if possible, or just append
+      // We can also calculate name here if we want, but let's keep it simple
+      const count = prev.length + 1;
+      const finalPartition = { ...newPartition, name: `New Score ${count}` };
+      return [...prev, finalPartition];
     });
+    setCurrentPartitionId(newId);
   }, []);
 
   useEffect(() => {
@@ -99,6 +105,19 @@ const App: React.FC = () => {
       localStorage.setItem('drum-partitions', JSON.stringify(partitions));
     }
   }, [partitions]);
+
+  // FAILSAFE: Recover from invalid state where currentPartitionId points to nothing
+  useEffect(() => {
+    if (partitions.length > 0 && currentPartitionId) {
+      const exists = partitions.find(p => p.id === currentPartitionId);
+      if (!exists) {
+        console.warn(`Partition ${currentPartitionId} not found. Resetting to first available.`);
+        setCurrentPartitionId(partitions[0].id);
+      }
+    } else if (partitions.length > 0 && !currentPartitionId) {
+      setCurrentPartitionId(partitions[0].id);
+    }
+  }, [partitions, currentPartitionId]);
 
   const handleUpdateAnnotationStyle = (style: Partial<TextAnnotation>) => {
     if (style.fontSize) {

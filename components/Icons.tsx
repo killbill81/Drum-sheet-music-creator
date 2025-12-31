@@ -111,9 +111,11 @@ export const PenIcon = () => (
 );
 
 export const EraserIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z" />
-    <path d="M17 17L7 17" />
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Tilted block eraser design */}
+    <path d="M7 21L3 17L13 7L17 11L7 21Z" />
+    <path d="M13 7L17 3L21 7L17 11" />
+    <path d="M14 8L18 12" opacity="0.5" />
   </svg>
 );
 
@@ -296,17 +298,28 @@ export const SixtyFourthRestIcon = () => (
 // Articulations
 export const FlamIcon = () => (
   <svg viewBox="0 0 32 32" className="h-6 w-auto" fill="currentColor">
-    {/* Main Note */}
-    <g transform="translate(-115, -55) scale(0.8)">
-      <BravuraNoteheadBlack />
-      <rect x="137.5" y="60" width="1.2" height="23" />
-    </g>
-    {/* Slashed Grace Note (Flam) - Reconstructed from Bravura reference */}
-    <g transform="translate(-25, 10) scale(0.5)">
-      <BravuraNoteheadBlack />
-      <rect x="137.5" y="55" width="1.8" height="28" />
-      {/* Precision Slash */}
-      <path d="M125 75 L150 60 L152 62 L127 77 Z" />
+    {/* Optimized transform to fit 32x32 viewbox */}
+    <g transform="translate(-108, -50) scale(0.85)">
+      {/* 1. Main Note */}
+      <g transform="translate(132, 85)">
+        <g transform="translate(-132, -85)">
+          <BravuraNoteheadBlack />
+          <rect x="137.5" y="65" width="1.5" height="18" />
+        </g>
+      </g>
+
+      {/* 2. Grace Note (Acciaccatura) - Sized for clarity in icon */}
+      <g transform="translate(116, 85) scale(0.7)">
+        <g transform="translate(-132, -85)">
+          <BravuraNoteheadBlack />
+          <rect x="137.5" y="50" width="2" height="37" />
+          {/* Thick, professional slash */}
+          <path d="M125 76 L150 63" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
+        </g>
+      </g>
+
+      {/* 3. Dramatic musical slur */}
+      <path d="M116 95 C124 108, 132 108, 140 95 C132 112, 124 112, 116 95 Z" />
     </g>
   </svg>
 );
