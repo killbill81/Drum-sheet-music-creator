@@ -54,6 +54,7 @@ export enum Articulation {
   FLAM = 'flam',
   BUZZ_ROLL = 'buzz_roll',
   ACCENT = 'accent',
+  GHOST_NOTE = 'ghost_note',
 }
 
 export interface Note {

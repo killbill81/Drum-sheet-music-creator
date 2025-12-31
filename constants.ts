@@ -11,31 +11,30 @@ export const MEASURE_PADDING_HORIZONTAL = 15;
 export const SUBDIVISIONS_PER_BEAT = 4; // 16th note precision
 export const STAFF_Y_OFFSET = 60;
 export const STAFF_X_OFFSET = 40;
-export const CLEF_WIDTH = 50;
+export const CLEF_WIDTH = 40;
 export const TIME_SIGNATURE_WIDTH = 30;
 
-// Y positions on the staff (from top line at STAFF_Y_OFFSET)
+// Y positions on the staff (relative to the top line, offsets in units of STAFF_LINE_GAP)
 const L = STAFF_LINE_GAP;
 export const DRUM_PART_Y_POSITIONS: Record<DrumPart, number> = {
-  // French Notation from PDF
-  [DrumPart.CRASH_CYMBAL]: STAFF_Y_OFFSET - 1.5 * L,
-  [DrumPart.RIDE_CYMBAL]: STAFF_Y_OFFSET - L,
-  [DrumPart.HI_HAT_OPEN]: STAFF_Y_OFFSET - 0.5 * L,
-  [DrumPart.HI_HAT_CLOSED]: STAFF_Y_OFFSET - 0.5 * L,
-  [DrumPart.HIGH_TOM]: STAFF_Y_OFFSET + 0.5 * L,
-  [DrumPart.MID_TOM]: STAFF_Y_OFFSET + L,
-  [DrumPart.SNARE]: STAFF_Y_OFFSET + 2 * L,
-  [DrumPart.SIDESTICK]: STAFF_Y_OFFSET + 1.5 * L,
-  [DrumPart.FLOOR_TOM]: STAFF_Y_OFFSET + 3 * L,
-  [DrumPart.BASS_DRUM]: STAFF_Y_OFFSET + 4 * L,
-  [DrumPart.HI_HAT_PEDAL]: STAFF_Y_OFFSET + 4.5 * L,
-  [DrumPart.REST]: STAFF_Y_OFFSET + 2 * L,
+  [DrumPart.CRASH_CYMBAL]: -L,      // 1ère ligne supplémentaire au-dessus
+  [DrumPart.RIDE_CYMBAL]: 0,        // 5ème ligne
+  [DrumPart.HI_HAT_OPEN]: -0.5 * L,  // Espace au-dessus
+  [DrumPart.HI_HAT_CLOSED]: -0.5 * L, // Espace au-dessus
+  [DrumPart.HIGH_TOM]: 0.5 * L,      // 4ème interligne
+  [DrumPart.MID_TOM]: L,            // 4ème ligne
+  [DrumPart.SNARE]: 1.5 * L,         // 3ème interligne (AGONTINI / FRANCAIS)
+  [DrumPart.SIDESTICK]: 1.5 * L,     // 3ème interligne
+  [DrumPart.FLOOR_TOM]: 2.5 * L,     // 2ème interligne
+  [DrumPart.BASS_DRUM]: 3.5 * L,     // 1er interligne
+  [DrumPart.HI_HAT_PEDAL]: 4.5 * L,  // Espace en-dessous
+  [DrumPart.REST]: 1.5 * L,          // Centre de la portée
 };
 
-// VexFlow mapping
+// VexFlow mapping (Updated for French notation)
 export const VEXFLOW_DRUM_MAPPING: Record<DrumPart, { keys: string[]; notehead?: string }> = {
   [DrumPart.BASS_DRUM]: { keys: ['f/4'] },
-  [DrumPart.SNARE]: { keys: ['b/4'] },
+  [DrumPart.SNARE]: { keys: ['c/5'] }, // Changé de b/4 à c/5 (3ème interligne)
   [DrumPart.SIDESTICK]: { keys: ['c/5'], notehead: 'x' },
   [DrumPart.HIGH_TOM]: { keys: ['e/5'] },
   [DrumPart.MID_TOM]: { keys: ['d/5'] },

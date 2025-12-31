@@ -37,47 +37,49 @@ const App: React.FC = () => {
   const pauseTimeRef = useRef<number>(0);
 
   const createNewPartition = useCallback(() => {
-    const newPartition: Partition = {
-      id: crypto.randomUUID(),
-      name: `New Score ${partitions.length + 1}`,
-      notes: [],
-      timeSignature: { top: 4, bottom: 4 },
-      tempo: 120,
-      numMeasures: 8,
-      textAnnotations: [],
-    };
-    setPartitions(prev => [...prev, newPartition]);
-    setCurrentPartitionId(newPartition.id);
-  }, [partitions.length]);
+    setPartitions(prev => {
+      const newPartition: Partition = {
+        id: crypto.randomUUID(),
+        name: `New Score ${prev.length + 1}`,
+        notes: [],
+        timeSignature: { top: 4, bottom: 4 },
+        tempo: 120,
+        numMeasures: 8,
+        textAnnotations: [],
+      };
+      setCurrentPartitionId(newPartition.id);
+      return [...prev, newPartition];
+    });
+  }, []);
 
   useEffect(() => {
-    try {
-      const savedPartitions = localStorage.getItem('drum-partitions');
-      if (savedPartitions) {
-        const parsedPartitions = JSON.parse(savedPartitions).map((p: Partition) => ({
-          ...p,
-          textAnnotations: p.textAnnotations.map(ann => ({
-            ...ann,
-            fontSize: ann.fontSize || 16,
-            fontWeight: ann.fontWeight || 'normal',
-            fontStyle: ann.fontStyle || 'normal',
-          })),
-        }));
+    const init = () => {
+      try {
+        const savedPartitions = localStorage.getItem('drum-partitions');
+        if (savedPartitions) {
+          const parsedPartitions = JSON.parse(savedPartitions).map((p: Partition) => ({
+            ...p,
+            textAnnotations: p.textAnnotations.map(ann => ({
+              ...ann,
+              fontSize: ann.fontSize || 16,
+              fontWeight: ann.fontWeight || 'normal',
+              fontStyle: ann.fontStyle || 'normal',
+            })),
+          }));
 
-        if (Array.isArray(parsedPartitions) && parsedPartitions.length > 0) {
-          setPartitions(parsedPartitions);
-          setCurrentPartitionId(parsedPartitions[0].id);
-        } else {
-          createNewPartition();
+          if (Array.isArray(parsedPartitions) && parsedPartitions.length > 0) {
+            setPartitions(parsedPartitions);
+            setCurrentPartitionId(parsedPartitions[0].id);
+            return;
+          }
         }
-      } else {
-        createNewPartition();
+      } catch (error) {
+        console.error("Failed to load partitions from localStorage:", error);
       }
-    } catch (error) {
-      console.error("Failed to load partitions from localStorage:", error);
       createNewPartition();
-    }
-  }, [createNewPartition]);
+    };
+    init();
+  }, []); // Only run once on mount
 
   const currentPartition = useMemo(() => {
     return partitions.find(p => p.id === currentPartitionId) || null;

@@ -9,7 +9,7 @@ import {
 } from '../constants';
 import { PercussionClef, PlaybackArrowIcon, TrashIcon, AddLineIcon } from './Icons';
 import { DraggableText } from './DraggableText';
-import { Renderer, Stave, StaveNote, Beam, Voice, Formatter, Articulation as VexArticulation, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Beam, Voice, Formatter, Articulation as VexArticulation, Accidental, Parenthesis, Tremolo } from 'vexflow';
 
 export interface StaffClickInfo {
   measureIndex: number;
@@ -208,10 +208,17 @@ const Staff: React.FC<StaffProps> = ({
             // Articulations
             beatNotes.forEach((n, index) => {
               if (n.articulation === Articulation.ACCENT) {
-                staveNote.addModifier(new VexArticulation('a>').setPosition(3), index); // 3 is ABOVE, VexFlow constant might vary
+                staveNote.addModifier(new VexArticulation('a>').setPosition(3), index); // 3 is ABOVE
+              }
+              if (n.articulation === Articulation.GHOST_NOTE) {
+                staveNote.addModifier(new Parenthesis(index), 0); // Correctly target the note head
+              }
+              if (n.articulation === Articulation.BUZZ_ROLL) {
+                staveNote.addModifier(new Tremolo(3), index);
               }
               if (n.articulation === Articulation.FLAM) {
-                // Flam is tricky in VexFlow, usually a grace note. Skip for now or use simplified indicator.
+                // Flam will be handled as GraceNote in a future update if needed
+                // For now, simplicity is kept for percussion mapping
               }
             });
 
@@ -308,12 +315,12 @@ const Staff: React.FC<StaffProps> = ({
     const area = measureNoteAreasRef.current.get(measureIndex);
     const measureXInLine = layout.measureStartXs[lineIndex][measureInLine];
 
-    let noteAreaStart = area ? area.start - measureXInLine : (isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH + MEASURE_PADDING_HORIZONTAL : MEASURE_PADDING_HORIZONTAL);
+    let noteAreaStart = area ? area.start - measureXInLine : (isFirstInLine ? CLEF_WIDTH + TIME_SIGNATURE_WIDTH : 0) + MEASURE_PADDING_HORIZONTAL;
     const currentMeasureWidth = layout.measureWidths[measureIndex];
     const paddedXInMeasure = xInMeasure - noteAreaStart;
     const noteAreaWidth = area ? area.width : (currentMeasureWidth - noteAreaStart - MEASURE_PADDING_HORIZONTAL);
 
-    if (paddedXInMeasure < 0 || paddedXInMeasure > noteAreaWidth) return null;
+    if (paddedXInMeasure < -5 || paddedXInMeasure > noteAreaWidth + 5) return null;
 
     return { x, y, lineIndex, measureIndex, currentMeasureWidth, xInMeasure, paddedXInMeasure, noteAreaWidth };
   };
@@ -355,12 +362,12 @@ const Staff: React.FC<StaffProps> = ({
 
       // Vertical alignment fix: use CAPTURED y coordinate from VexFlow
       const yFromVF = area?.yPositions.get(DRUM_PART_Y_POSITIONS[selectedDrumPart]);
-      const partY = yFromVF ?? (lineYOffset + DRUM_PART_Y_POSITIONS[selectedDrumPart]);
+      const partY = yFromVF ?? (lineYOffset + STAFF_Y_OFFSET + DRUM_PART_Y_POSITIONS[selectedDrumPart]);
 
       // STABILIZE state update to prevent infinite loop
       if (!hoverPosition ||
-        Math.abs(hoverPosition.x - beatX) > 0.1 ||
-        Math.abs(hoverPosition.y - partY) > 0.1 ||
+        Math.abs(hoverPosition.x - beatX) > 0.5 ||
+        Math.abs(hoverPosition.y - partY) > 0.5 ||
         hoverPosition.part !== selectedDrumPart) {
         setHoverPosition({ x: beatX, y: partY, part: selectedDrumPart });
       }
